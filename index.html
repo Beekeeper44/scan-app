@@ -1140,7 +1140,7 @@ function findCard(img){
 
   /* a card laid slightly askew needs more room than its axis-aligned block, and losing a
      card edge is worse than keeping a sliver of mat, so bias outward */
-  const SAFE = 0.04;
+  const SAFE = 0.03;
   const bw = box[2]-box[0], bh = box[3]-box[1];
   box = [ Math.max(0, box[0]-bw*SAFE), Math.max(0, box[1]-bh*SAFE),
           Math.min(1, box[2]+bw*SAFE), Math.min(1, box[3]+bh*SAFE) ];
@@ -1150,7 +1150,32 @@ function findCard(img){
                h: (box[3]-box[1])*img.naturalHeight };
   const ar = px.w / px.h;
   if(!((ar > 0.50 && ar < 0.95) || (ar > 1.05 && ar < 2.00))) return null;
-  return { ...px, ar };
+  return { ...px, ar, mat };
+}
+
+/* The crop is biased loose so a skewed card never loses an edge, which leaves a ring of
+   mat between the card and the border. Walk in from all four sides and blacken anything
+   still the colour of the mat — the ring merges into the border and the card sits on
+   clean black. Stops at the first pixel that isn't mat, so the card itself is untouched. */
+function blackenSurround(ctx, W, H, mat, tol){
+  let img; try{ img = ctx.getImageData(0, 0, W, H); }catch(e){ return; }
+  const d = img.data;
+  const bg = i => {
+    if(d[i] < 26 && d[i+1] < 26 && d[i+2] < 26) return true;      // the border itself
+    const dr = d[i]-mat[0], dg = d[i+1]-mat[1], db = d[i+2]-mat[2];
+    return dr*dr + dg*dg + db*db < tol*tol;
+  };
+  const kill = i => { d[i] = 0; d[i+1] = 0; d[i+2] = 0; };
+  for(let y = 0; y < H; y++){
+    const row = y*W*4;
+    for(let x = 0; x < W; x++){ const i = row + x*4; if(bg(i)) kill(i); else break; }
+    for(let x = W-1; x >= 0; x--){ const i = row + x*4; if(bg(i)) kill(i); else break; }
+  }
+  for(let x = 0; x < W; x++){
+    for(let y = 0; y < H; y++){ const i = (y*W + x)*4; if(bg(i)) kill(i); else break; }
+    for(let y = H-1; y >= 0; y--){ const i = (y*W + x)*4; if(bg(i)) kill(i); else break; }
+  }
+  ctx.putImageData(img, 0, 0);
 }
 
 async function finishImage(dataUrl){
@@ -1175,6 +1200,7 @@ async function finishImage(dataUrl){
   }
   x.drawImage(img, src.x, src.y, src.w, src.h, 0, 0, src.w, src.h);
   x.restore();
+  if(box && box.mat) blackenSurround(x, c.width, c.height, box.mat, 46);
   return {
     url: c.toDataURL('image/jpeg', CFG.quality),
     found: !!box, rotated: rotate, pad, pxmm
