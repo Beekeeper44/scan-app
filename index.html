@@ -359,9 +359,13 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 .pair .frame:active::after{opacity:1}
 .caprow{display:flex;align-items:center;justify-content:center;gap:9px}
 .caprow span{font-size:13px;letter-spacing:.14em;color:var(--dim)}
-.caprow .retake{display:grid;place-items:center;width:44px;height:44px;margin:-9px 0;
-  border-radius:9px;color:var(--red)}
+.caprow .retake,.caprow .turn{display:grid;place-items:center;width:44px;height:44px;
+  margin:-9px 0;border-radius:9px}
+.caprow .retake{color:var(--red)}
+.caprow .turn{color:var(--signal)}
 .caprow .retake:active{background:rgba(255,59,78,.14)}
+.caprow .turn:active{background:rgba(57,255,20,.14)}
+.caprow span{flex:0 0 auto}
 
 /* ---------- complete ---------- */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(94px,1fr));gap:9px;
@@ -637,6 +641,11 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
         <figure>
           <div class="frame" id="revF"><img id="revFimg" alt="Captured front"></div>
           <div class="caprow"><span>FRONT</span>
+            <button class="turn" data-side="front" aria-label="Rotate the front 90 degrees">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 3.4-7"/><path d="M3 3.5v6h6"/></svg>
+            </button>
             <button class="retake" data-side="front" aria-label="Retake the front">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
                    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -647,6 +656,11 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
         <figure>
           <div class="frame" id="revB"><img id="revBimg" alt="Captured back"></div>
           <div class="caprow"><span>BACK</span>
+            <button class="turn" data-side="back" aria-label="Rotate the back 90 degrees">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 3.4-7"/><path d="M3 3.5v6h6"/></svg>
+            </button>
             <button class="retake" data-side="back" aria-label="Retake the back">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
                    stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -782,7 +796,9 @@ const CFG = {
   maxEdge: 2000,          // longest side of a saved image, px
   quality: 0.92,
   pad: 0.04,              // safety margin outside the guide
-  guide: 0.70             // one frame for raw and slabbed alike
+  guide: 1.00,            // square: a card fits laid either way, detection sorts out which
+  cardMm: 63.5,           // raw card short edge; the scale reference for the border
+  padMm: 3.0              // black border on the saved image
 };
 
 /* ---------- tiny helpers ---------- */
@@ -812,7 +828,8 @@ function show(name){
 const state = {
   screen:'splash', box:null, target:0, cards:[], seq:0,
   side:'front', pending:{front:null,back:null},
-  retake:null, auto:false, demo:false, countBuf:'', returnTo:'start', flip:true
+  retake:null, auto:false, demo:false, countBuf:'', returnTo:'start', flip:true,
+  rotDir:'ccw', meta:{front:null, back:null}
 };
 
 /* ============================================================
@@ -959,13 +976,15 @@ const Cam = {
     const c = this.demoCanvas, CW = c.width, CH = c.height;
     let X, Y, W, H;
     const r = guideCrop();
+    const AR = 0.71;                                     // a real card, inside a square guide
     if(r && r.cw > 24 && r.chh > 24){
-      const k = 0.045;                                   // let the brackets stay visible
-      X = (state.flip ? CW - r.sx - r.cw : r.sx) + r.cw*k;
-      Y = (state.flip ? CH - r.sy - r.chh : r.sy) + r.chh*k;
-      W = r.cw * (1 - k*2); H = r.chh * (1 - k*2);
+      const gx = state.flip ? CW - r.sx - r.cw : r.sx;
+      const gy = state.flip ? CH - r.sy - r.chh : r.sy;
+      H = r.chh * 0.90; W = H * AR;
+      if(W > r.cw * 0.90){ W = r.cw * 0.90; H = W / AR; }
+      X = gx + (r.cw - W)/2; Y = gy + (r.chh - H)/2;
     }else{
-      H = CH*0.66; W = H*CFG.guide; X = (CW-W)/2; Y = (CH-H)/2;
+      H = CH*0.66; W = H*AR; X = (CW-W)/2; Y = (CH-H)/2;
     }
     const rad = Math.min(14, W*0.05);
     const rr = ()=>{ x.beginPath();
@@ -1027,6 +1046,108 @@ function guideCrop(){
   sx = Math.max(0, sx); sy = Math.max(0, sy);
   cw = Math.min(cw, vw - sx); chh = Math.min(chh, vh - sy);
   return { sx, sy, cw, chh };
+}
+
+/* ============================================================
+   CARD FINISHING — find the card, stand it upright, put a border on it
+
+   Orientation is read off the bounding box: a card is either about 0.71 or about 1.41,
+   nowhere near each other, so "is this sideways" is unambiguous once the card is found.
+   Which way round it was laid is NOT knowable from shape alone — that's the rotate button
+   on the confirm screen.
+
+   Scale comes from the card itself: its short edge is 63.5mm, so px/mm falls out of the
+   detected width and the border stays 3mm at any camera height.
+   ============================================================ */
+function loadImg(src){
+  return new Promise((res, rej)=>{
+    const i = new Image();
+    i.onload = ()=>res(i); i.onerror = rej; i.src = src;
+  });
+}
+
+function findCard(img){
+  const W = 200, H = Math.max(1, Math.round(W * img.naturalHeight / img.naturalWidth));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d', { willReadFrequently:true });
+  x.drawImage(img, 0, 0, W, H);
+  let d;
+  try{ d = x.getImageData(0, 0, W, H).data; }catch(e){ return null; }
+
+  const n = W*H, lum = new Float32Array(n), sat = new Float32Array(n);
+  for(let i = 0, j = 0; j < n; i += 4, j++){
+    const r = d[i], g = d[i+1], b = d[i+2];
+    lum[j] = (r*3 + g*6 + b) / 10;
+    const mx = Math.max(r,g,b), mn = Math.min(r,g,b);
+    sat[j] = mx ? (mx - mn) / mx * 255 : 0;
+  }
+  const mag = new Float32Array(n);
+  for(let y = 1; y < H; y++) for(let xq = 1; xq < W; xq++){
+    const i = y*W + xq;
+    mag[i] = Math.abs(lum[i] - lum[i-1]) + Math.abs(lum[i] - lum[i-W]);
+  }
+  const sorted = Array.from(mag).sort((a,b)=>a-b);
+  const thr = sorted[Math.floor(sorted.length * 0.88)] || 1;
+
+  const xs = [], ys = [];
+  for(let y = 0; y < H; y++) for(let xq = 0; xq < W; xq++){
+    const i = y*W + xq;
+    if(mag[i] > thr || sat[i] > 70){ xs.push(xq); ys.push(y); }
+  }
+  if(xs.length < 60) return null;
+  const pct = (arr, p)=>{ const a = arr.slice().sort((m,q)=>m-q);
+                          return a[Math.floor((a.length-1)*p)]; };
+  const x0 = pct(xs,0.015), x1 = pct(xs,0.985);
+  const y0 = pct(ys,0.015), y1 = pct(ys,0.985);
+  const bw = x1-x0, bh = y1-y0;
+  if(bw < W*0.22 || bh < H*0.22) return null;         // too small to be the card
+  if(bw > W*0.99 && bh > H*0.99) return null;         // filled the frame: no edge found
+  const ar = bw/bh;
+  if(!((ar > 0.50 && ar < 0.95) || (ar > 1.05 && ar < 2.00))) return null;
+  const fx = img.naturalWidth/W, fy = img.naturalHeight/H;
+  return { x:x0*fx, y:y0*fy, w:bw*fx, h:bh*fy, ar };
+}
+
+async function finishImage(dataUrl){
+  const img = await loadImg(dataUrl);
+  const box = findCard(img);
+  const src = box || { x:0, y:0, w:img.naturalWidth, h:img.naturalHeight };
+  const rotate = src.w > src.h;
+  const outW = rotate ? src.h : src.w;
+  const outH = rotate ? src.w : src.h;
+  const pxmm = outW / CFG.cardMm;
+  const pad = Math.max(2, Math.round(CFG.padMm * pxmm));
+
+  const c = document.createElement('canvas');
+  c.width = Math.round(outW + pad*2); c.height = Math.round(outH + pad*2);
+  const x = c.getContext('2d');
+  x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
+  x.save();
+  x.translate(pad, pad);
+  if(rotate){
+    if(state.rotDir === 'ccw'){ x.translate(0, outH); x.rotate(-Math.PI/2); }
+    else { x.translate(outW, 0); x.rotate(Math.PI/2); }
+  }
+  x.drawImage(img, src.x, src.y, src.w, src.h, 0, 0, src.w, src.h);
+  x.restore();
+  return {
+    url: c.toDataURL('image/jpeg', CFG.quality),
+    found: !!box, rotated: rotate, pad, pxmm
+  };
+}
+
+/* one tap on the confirm screen when a card came out the wrong way round */
+async function rotatePending(side){
+  const url = state.pending[side]; if(!url) return;
+  const img = await loadImg(url);
+  const c = document.createElement('canvas');
+  c.width = img.naturalHeight; c.height = img.naturalWidth;
+  const x = c.getContext('2d');
+  x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
+  x.translate(c.width, 0); x.rotate(Math.PI/2);
+  x.drawImage(img, 0, 0);
+  state.pending[side] = c.toDataURL('image/jpeg', CFG.quality);
+  toReview();
 }
 
 /* ============================================================
@@ -1198,17 +1319,24 @@ function toCapture(side){
   paintTop(); Shot.begin();
 }
 
-function onCaptured(img){
-  state.pending[state.side] = img;
+async function onCaptured(img){
   Sound.click(); navigator.vibrate?.(28);
+  const side = state.side;
+  let out;
+  try{ out = await finishImage(img); }
+  catch(e){ out = { url:img, found:false, rotated:false }; }
+  state.pending[side] = out.url;
+  state.meta[side] = { found: out.found, rotated: out.rotated };
+  if(!out.found) toast('Card edge not found — border added to the full frame');
+
   if(state.retake){                       // came from review — go straight back
     state.retake = null; Shot.end(); return toReview();
   }
-  if(state.side === 'front'){
+  if(side === 'front'){
     Shot.needsMotion = true; Shot.stillSince = 0;
     toCapture('back');
   }else{
-    Shot.end(); hold(img);
+    Shot.end(); hold(out.url);
   }
 }
 
@@ -1252,6 +1380,7 @@ async function confirmCard(){
   const id = 'C' + Date.now().toString(36).toUpperCase().slice(-6);
   const seq = state.seq + 1;
   const rec = { id, seq, at: new Date().toISOString(),
+                finish: { front: state.meta.front, back: state.meta.back },
                 front: state.pending.front, back: state.pending.back, uploads: [] };
   for(const side of ['front','back']){
     const key = Storage.key(state.box.number, seq, side, id);
@@ -1260,6 +1389,7 @@ async function confirmCard(){
   state.cards.push(rec);
   Sound.done();
   state.pending = { front:null, back:null };
+  state.meta = { front:null, back:null };
   state.seq++;
   paintTop();
   if(state.seq >= state.target) return toComplete();
@@ -1565,6 +1695,9 @@ $('#revB').onclick = ()=>enlarge(state.pending.back,  'back');
 document.querySelectorAll('.caprow .retake').forEach(b=> b.onclick = e=>{
   e.stopPropagation();
   state.retake = b.dataset.side; toCapture(b.dataset.side);
+});
+document.querySelectorAll('.caprow .turn').forEach(b=> b.onclick = e=>{
+  e.stopPropagation(); rotatePending(b.dataset.side);
 });
 $('#revOk').onclick = ()=>confirmCard();
 $('#revDrop').onclick = ()=>{
