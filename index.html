@@ -1111,71 +1111,67 @@ function findCard(img){
   if(!ex || !ey) return null;
   if(ex[1]-ex[0] < W*0.20 || ey[1]-ey[0] < H*0.20) return null;
 
-  /* walk each edge outward at higher resolution until it meets the mat */
-  const W2 = 560, H2 = Math.max(1, Math.round(W2 * img.naturalHeight / img.naturalWidth));
+  /* Put each edge exactly where the difference-from-mat falls off a cliff. Walking outward
+     with a threshold stopped early on the mat's leather grain and left a ragged fringe; the
+     steepest point of the profile is where the card really ends, and texture doesn't move it. */
+  const W2 = 640, H2 = Math.max(1, Math.round(W2 * img.naturalHeight / img.naturalWidth));
   const c2 = document.createElement('canvas'); c2.width = W2; c2.height = H2;
   const x2 = c2.getContext('2d', { willReadFrequently:true });
   x2.drawImage(img, 0, 0, W2, H2);
   let d2; try{ d2 = x2.getImageData(0,0,W2,H2).data; }catch(e){ d2 = null; }
   let box = [ex[0]/W, ey[0]/H, ex[1]/W, ey[1]/H];
+
   if(d2){
-    const dv = (px,py)=>{
-      const i = (py*W2 + px)*4;
+    const dv = (px2,py)=>{
+      const i = (py*W2 + px2)*4;
       const dr = d2[i]-mat[0], dg = d2[i+1]-mat[1], db = d2[i+2]-mat[2];
       return Math.sqrt(dr*dr + dg*dg + db*db);
     };
-    let ix0 = Math.round(box[0]*W2), ix1 = Math.round(box[2]*W2);
-    let iy0 = Math.round(box[1]*H2), iy1 = Math.round(box[3]*H2);
-    const colAt = px => { let s = 0; for(let y = iy0; y < iy1; y++) s += dv(px,y);
-                          return s/Math.max(1, iy1-iy0); };
-    const rowAt = py => { let s = 0; for(let xq = ix0; xq < ix1; xq++) s += dv(xq,py);
-                          return s/Math.max(1, ix1-ix0); };
-    const lim = cut*0.85;
-    while(ix0 > 0        && colAt(ix0-1) > lim) ix0--;
-    while(ix1 < W2-1     && colAt(ix1+1) > lim) ix1++;
-    while(iy0 > 0        && rowAt(iy0-1) > lim) iy0--;
-    while(iy1 < H2-1     && rowAt(iy1+1) > lim) iy1++;
-    box = [ix0/W2, iy0/H2, ix1/W2, iy1/H2];
+    const ix0 = Math.round(box[0]*W2), ix1 = Math.round(box[2]*W2);
+    const iy0 = Math.round(box[1]*H2), iy1 = Math.round(box[3]*H2);
+    /* sample the middle 70% only, so corners and a little skew don't drag the profile */
+    const cy0 = iy0 + Math.round((iy1-iy0)*0.15), cy1 = iy1 - Math.round((iy1-iy0)*0.15);
+    const cx0 = ix0 + Math.round((ix1-ix0)*0.15), cx1 = ix1 - Math.round((ix1-ix0)*0.15);
+    const colP = new Float32Array(W2), rowP = new Float32Array(H2);
+    for(let p2 = 0; p2 < W2; p2++){
+      let s = 0; for(let q = cy0; q < cy1; q++) s += dv(p2,q);
+      colP[p2] = s / Math.max(1, cy1-cy0);
+    }
+    for(let q = 0; q < H2; q++){
+      let s = 0; for(let p2 = cx0; p2 < cx1; p2++) s += dv(p2,q);
+      rowP[q] = s / Math.max(1, cx1-cx0);
+    }
+    const smooth = p2 => {
+      const o = new Float32Array(p2.length);
+      for(let i = 0; i < p2.length; i++){
+        let s = 0, n = 0;
+        for(let k = -2; k <= 2; k++){ const j = i+k; if(j>=0 && j<p2.length){ s += p2[j]; n++; } }
+        o[i] = s/n;
+      }
+      return o;
+    };
+    const cP = smooth(colP), rP = smooth(rowP);
+    const edge = (p2, guess, span, rising)=>{
+      const w = Math.max(4, Math.round(span*p2.length));
+      const a2 = Math.max(1, guess-w), b2 = Math.min(p2.length-1, guess+w);
+      let best = guess, bv = rising ? -Infinity : Infinity;
+      for(let i = a2; i < b2; i++){
+        const g = p2[i+1] - p2[i-1];
+        if(rising ? g > bv : g < bv){ bv = g; best = i; }
+      }
+      return best;
+    };
+    const nx0 = edge(cP, ix0, 0.06, true),  nx1 = edge(cP, ix1, 0.06, false);
+    const ny0 = edge(rP, iy0, 0.06, true),  ny1 = edge(rP, iy1, 0.06, false);
+    if(nx1-nx0 > W2*0.20 && ny1-ny0 > H2*0.20) box = [nx0/W2, ny0/H2, nx1/W2, ny1/H2];
   }
-
-  /* a card laid slightly askew needs more room than its axis-aligned block, and losing a
-     card edge is worse than keeping a sliver of mat, so bias outward */
-  const SAFE = 0.03;
-  const bw = box[2]-box[0], bh = box[3]-box[1];
-  box = [ Math.max(0, box[0]-bw*SAFE), Math.max(0, box[1]-bh*SAFE),
-          Math.min(1, box[2]+bw*SAFE), Math.min(1, box[3]+bh*SAFE) ];
 
   const px = { x: box[0]*img.naturalWidth,  y: box[1]*img.naturalHeight,
                w: (box[2]-box[0])*img.naturalWidth,
                h: (box[3]-box[1])*img.naturalHeight };
   const ar = px.w / px.h;
   if(!((ar > 0.50 && ar < 0.95) || (ar > 1.05 && ar < 2.00))) return null;
-  return { ...px, ar, mat };
-}
-
-/* The crop is biased loose so a skewed card never loses an edge, which leaves a ring of
-   mat between the card and the border. Walk in from all four sides and blacken anything
-   still the colour of the mat — the ring merges into the border and the card sits on
-   clean black. Stops at the first pixel that isn't mat, so the card itself is untouched. */
-function blackenSurround(ctx, W, H, mat, tol){
-  let img; try{ img = ctx.getImageData(0, 0, W, H); }catch(e){ return; }
-  const d = img.data;
-  const bg = i => {
-    if(d[i] < 26 && d[i+1] < 26 && d[i+2] < 26) return true;      // the border itself
-    const dr = d[i]-mat[0], dg = d[i+1]-mat[1], db = d[i+2]-mat[2];
-    return dr*dr + dg*dg + db*db < tol*tol;
-  };
-  const kill = i => { d[i] = 0; d[i+1] = 0; d[i+2] = 0; };
-  for(let y = 0; y < H; y++){
-    const row = y*W*4;
-    for(let x = 0; x < W; x++){ const i = row + x*4; if(bg(i)) kill(i); else break; }
-    for(let x = W-1; x >= 0; x--){ const i = row + x*4; if(bg(i)) kill(i); else break; }
-  }
-  for(let x = 0; x < W; x++){
-    for(let y = 0; y < H; y++){ const i = (y*W + x)*4; if(bg(i)) kill(i); else break; }
-    for(let y = H-1; y >= 0; y--){ const i = (y*W + x)*4; if(bg(i)) kill(i); else break; }
-  }
-  ctx.putImageData(img, 0, 0);
+  return { ...px, ar };
 }
 
 async function finishImage(dataUrl){
@@ -1200,7 +1196,6 @@ async function finishImage(dataUrl){
   }
   x.drawImage(img, src.x, src.y, src.w, src.h, 0, 0, src.w, src.h);
   x.restore();
-  if(box && box.mat) blackenSurround(x, c.width, c.height, box.mat, 46);
   return {
     url: c.toDataURL('image/jpeg', CFG.quality),
     found: !!box, rotated: rotate, pad, pxmm
