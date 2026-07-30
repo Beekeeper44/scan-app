@@ -40,6 +40,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;
   touch-action:manipulation}
 button,a,.frame,#qrthumb,.bpic{touch-action:manipulation}
 :focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.pressed{opacity:.6;transform:scale(.97);transition:none!important}
 #app{position:fixed;inset:0;left:0;right:0;margin:0 auto;width:100%;max-width:440px;
   display:flex;flex-direction:column}
 @media (min-width:480px){
@@ -524,7 +525,13 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
       </div>
       <div class="dock">
         <div class="side"><button class="btn ghost sm" id="qrCancel">CANCEL</button></div>
-        <div class="side"><button class="btn sm" id="qrDemo">SKIP · USE 8170</button></div>
+        <div class="shutter">
+          <svg viewBox="0 0 74 74"><circle class="ring-bg" cx="37" cy="37" r="35"/></svg>
+          <button id="qrShoot" aria-label="Take the box photo"></button>
+        </div>
+        <div class="side" style="text-align:right">
+          <button class="btn ghost sm" id="qrDemo" style="width:auto;padding:13px 12px">SKIP</button>
+        </div>
       </div>
     </section>
 
@@ -1337,13 +1344,19 @@ const QR = { detector:null, loop:null, jsqr:null, busy:false,
     $('#qrStatus').textContent = ok ? '● SCANNING FOR BOX CODE' : '● ENTER CODE MANUALLY';
     $('#qrStatus').className = 'pill ' + (ok ? 'live' : 'warn');
     if(!ok) return;
-    clearInterval(this.loop);
-    this.loop = setInterval(()=>this.tick(), 140);
+    this.gap = 200;
+    this.schedule();
   },
-  stop(){ clearInterval(this.loop); },
+  schedule(){
+    clearTimeout(this.loop);
+    this.loop = setTimeout(()=>this.tick(), this.gap);
+  },
+  stop(){ clearTimeout(this.loop); clearInterval(this.loop); },
   async tick(){
-    if(this.busy || state.screen !== 'qr') return;
+    if(state.screen !== 'qr') return;
+    if(this.busy) return this.schedule();
     this.busy = true;
+    const t0 = performance.now();
     try{
       const src = Cam.el, w = src.videoWidth||src.width, h = src.videoHeight||src.height;
       if(!w) return;
@@ -1367,9 +1380,15 @@ const QR = { detector:null, loop:null, jsqr:null, busy:false,
                  width:(Math.max(...xs)-x0)/sc, height:(Math.max(...ys)-y0)/sc };
         }
       }
-      if(value){ this.stop(); acceptCode(value, grab(codeCrop(at))); }
+      if(value){ this.stop(); return acceptCode(value, grab(codeCrop(at))); }
     }catch(e){}
-    finally{ this.busy = false; }
+    finally{
+      this.busy = false;
+      // keep the main thread free enough that buttons respond immediately
+      const took = performance.now() - t0;
+      this.gap = took > 130 ? 420 : took > 70 ? 280 : 200;
+      if(state.screen === 'qr') this.schedule();
+    }
   }
 };
 
@@ -1449,6 +1468,41 @@ $('#btnStart').onclick = async ()=>{
   $('#stCam').textContent = live ? 'live' : 'demo mode';
   QR.start();
 };
+/* Manual box photo: take the frame, try to read a code out of it, and keep the picture
+   either way so a label that will not scan can still be recorded and typed in. */
+$('#qrShoot').onclick = async ()=>{
+  const full = grab();
+  if(!full) return toast('Camera not ready');
+  Sound.click(); navigator.vibrate?.(28);
+  let value = null, at = null;
+  try{
+    const src = Cam.el, w = src.videoWidth||src.width, h2 = src.videoHeight||src.height;
+    const c = document.createElement('canvas');
+    const sc = Math.min(1, 1100/Math.max(w,h2));
+    c.width = w*sc; c.height = h2*sc;
+    const x = c.getContext('2d', {willReadFrequently:true});
+    x.drawImage(src,0,0,c.width,c.height);
+    if(QR.detector){
+      const r = await QR.detector.detect(src);
+      if(r.length){ value = r[0].rawValue; at = r[0].boundingBox; }
+    }
+    if(!value && QR.jsqr){
+      const r = QR.jsqr(x.getImageData(0,0,c.width,c.height).data, c.width, c.height);
+      if(r){
+        value = r.data;
+        const p = Object.values(r.location), xs = p.map(q=>q.x), ys = p.map(q=>q.y);
+        const x0 = Math.min(...xs), y0 = Math.min(...ys);
+        at = { x:x0/sc, y:y0/sc,
+               width:(Math.max(...xs)-x0)/sc, height:(Math.max(...ys)-y0)/sc };
+      }
+    }
+  }catch(e){}
+  QR.stop();
+  if(value) return acceptCode(value, grab(codeCrop(at)));
+  const code = prompt('No code found in that photo. Type the box number:');
+  if(!code){ QR.start(); return; }
+  acceptCode(code, full);
+};
 $('#qrCancel').onclick = ()=>{ QR.stop(); show('start'); };
 $('#qrDemo').onclick = ()=>{ QR.stop(); acceptCode('admin.arenaclub.com/b/8170', grab()); };
 $('#qrManual').onclick = ()=>{
@@ -1489,7 +1543,8 @@ $('#focusTap').onclick = async e=>{
   const ok = await Cam.focusAt(nx, ny);
   if(!ok && !state.demo) toast('This camera does not expose focus control');
 };
-$('#btnShoot').onclick = ()=>Shot.fire();
+$('#btnShoot').addEventListener('pointerdown', e=>{ e.preventDefault(); Shot.fire(); },
+  { passive:false });
 $('#autoOn').onclick = ()=>{ state.auto = true;
   $('#autoOn').classList.add('on'); $('#autoOff').classList.remove('on');
   Shot.needsMotion = false; Shot.stillSince = 0; };
@@ -1975,6 +2030,16 @@ $('#pairBtn').onclick = ()=>Pair.open();
 $('#pairCancel').onclick = ()=>Pair.close();
 $('#pairNext').onclick = ()=>Pair.next();
 addEventListener('keydown', e=>Remote.handle(e));
+
+/* press feedback, delegated so it covers everything without rebinding handlers */
+const PRESSABLE = 'button,.pill.act,.frame,.cell,.bpic,.histrow';
+addEventListener('pointerdown', e=>{
+  const t = e.target.closest(PRESSABLE);
+  if(t) t.classList.add('pressed');
+}, { passive:true });
+['pointerup','pointercancel','pointerleave','touchend'].forEach(ev =>
+  addEventListener(ev, ()=>document.querySelectorAll('.pressed')
+    .forEach(el => el.classList.remove('pressed')), { passive:true }));
 
 addEventListener('resize', ()=>{ if(state.screen === 'capture') setGuideAspect(); });
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden) Shot.disarm(); });
