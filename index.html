@@ -1,0 +1,1894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Scan App">
+<meta name="application-name" content="Scan App">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<title>Scan App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter+Tight:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   SCAN APP — design tokens
+   ink        #000000  true black, camera-first
+   panel      #0B0D0C  raised surfaces
+   line       #1C221F  hairlines
+   signal     #39FF14  neon green — live / confirmed
+   amber      #FFB020  waiting / armed
+   red        #FF3B4E  retake / discard
+   text2      #DCE5E1  secondary prose, 16:1 on black
+   dim        #C8D3CE  labels, 13.7:1 on black — hierarchy by size and case, not by grey
+   ============================================================ */
+:root{
+  --ink:#000; --panel:#0B0D0C; --panel2:#121614; --line:#1C221F;
+  --signal:#39FF14; --amber:#FFB020; --red:#FF3B4E;
+  --text:#EAF2EE; --text2:#DCE5E1; --dim:#C8D3CE;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  --disp:'Inter Tight',system-ui,sans-serif;
+  --top:calc(env(safe-area-inset-top,0px));
+  --bot:calc(env(safe-area-inset-bottom,0px));
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);color:var(--text)}
+body{font-family:var(--mono);font-size:14px;-webkit-font-smoothing:antialiased;user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;
+  touch-action:manipulation}
+button,a,.frame,#qrthumb,.bpic{touch-action:manipulation}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+#app{position:fixed;inset:0;left:0;right:0;margin:0 auto;width:100%;max-width:440px;
+  display:flex;flex-direction:column}
+@media (min-width:480px){
+  body{background:#050505}
+  #app{border-left:1px solid var(--line);border-right:1px solid var(--line);background:var(--ink)}
+}
+
+/* ---------- app bar : logo doubles as the way home ---------- */
+#appbar{flex:0 0 auto;padding:calc(var(--top) + 8px) 14px 8px;display:none;
+  align-items:center;background:var(--ink);border-bottom:1px solid var(--line)}
+#appbar.on{display:flex}
+#demoBadge{margin-left:auto;display:none;border:1px solid rgba(255,176,32,.45);color:var(--amber);
+  border-radius:100px;padding:7px 13px;font-size:12px;letter-spacing:.1em}
+#demoBadge.on{display:block}
+#homeBtn{display:flex;align-items:center;gap:9px;padding:6px 8px;margin:-6px -8px;
+  border-radius:8px;min-height:48px}
+#homeBtn:active{opacity:.55}
+#logo3{height:42px;object-fit:contain;display:block}
+#logo4{height:78px;max-width:60vw;object-fit:contain}
+#menuBtn{margin-left:auto;display:grid;place-items:center;width:48px;height:48px;
+  margin-right:-10px;border-radius:10px;color:var(--text)}
+#menuBtn:active{background:var(--panel2)}
+#demoBadge.on ~ #menuBtn{margin-left:12px}
+#menuBack{position:fixed;inset:0;z-index:64;display:none}
+#menuBack.on{display:block}
+#menu{position:fixed;z-index:65;display:none;right:calc(50% - 220px + 12px);
+  top:calc(var(--top) + 62px);width:230px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:13px;padding:6px;
+  box-shadow:0 18px 44px rgba(0,0,0,.7)}
+#menu.on{display:block}
+@media (max-width:480px){ #menu{right:12px} }
+.menuhead{padding:12px 12px 11px;border-bottom:1px solid var(--line);margin-bottom:5px}
+.menuname{font-family:var(--disp);font-size:17px;font-weight:700;letter-spacing:-.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#menu button{display:block;width:100%;text-align:left;padding:14px 12px;border-radius:9px;
+  font-family:var(--disp);font-weight:600;font-size:15.5px;min-height:48px}
+#menu button:active{background:var(--panel)}
+#menuSignout{color:var(--red)}
+
+/* ---------- history ---------- */
+.histlist{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;margin:12px 0 0;
+  padding-bottom:14px}
+.histday{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  font-size:11.5px;letter-spacing:.2em;color:var(--dim);margin:18px 0 10px;
+  padding-bottom:8px;border-bottom:1px solid var(--line)}
+.histday:first-child{margin-top:4px}
+.histday span{letter-spacing:.1em;font-size:11px}
+.histnone{font-size:13px;color:var(--dim);padding:14px 2px 6px}
+.histolder{font-size:11.5px;letter-spacing:.14em;color:var(--dim);text-align:center;
+  padding:20px 0 4px}
+.histrow{display:flex;align-items:center;gap:12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel);padding:11px;margin-bottom:8px}
+.hthumb{width:46px;height:60px;flex:0 0 46px;border-radius:6px;border:1px solid var(--line);
+  object-fit:contain;background:#fff;display:block}
+.hthumb.blank{display:grid;place-items:center;background:var(--panel2);color:var(--dim);
+  font-size:14px;letter-spacing:.05em}
+.histrow .hnum{font-size:15px;letter-spacing:.08em;color:var(--signal);flex:0 0 auto}
+.histrow .hmid{flex:1;min-width:0}
+.histrow .hname{font-family:var(--disp);font-size:15px;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.histrow .hsub{font-size:11px;color:var(--dim);margin-top:3px}
+.histrow .hcount{font-family:var(--disp);font-size:20px;font-weight:700;flex:0 0 auto;
+  text-align:right;line-height:1}
+.histrow .hcount small{display:block;font-size:9.5px;letter-spacing:.14em;color:var(--dim);
+  margin-top:4px;font-weight:400}
+.histempty{text-align:center;color:var(--dim);font-size:13px;padding:40px 20px;line-height:1.6}
+#histBack{flex:0 0 auto;font-size:12px;font-weight:700;letter-spacing:.12em;
+  color:var(--signal);border:1px solid var(--signal);background:rgba(57,255,20,.10);
+  border-radius:9px;padding:12px 16px;min-height:44px;transition:background .15s}
+#histBack:active{background:var(--signal);color:#06210A}
+.wordmark.mini{font-size:16px}
+
+/* ---------- top bar : box context, persistent after QR ---------- */
+#topbar{
+  flex:0 0 auto;padding:9px 12px;background:var(--panel);
+  border-bottom:1px solid var(--line);display:none;gap:10px;align-items:center;
+}
+#topbar.on{display:flex}
+#qrthumb{
+  width:50px;height:50px;flex:0 0 50px;border:1px solid var(--line);border-radius:6px;
+  object-fit:contain;background:#fff;cursor:zoom-in
+}
+.tb-mid{flex:1;min-width:0}
+.tb-num{font-size:13.5px;letter-spacing:.12em;color:var(--signal)}
+.tb-name{font-family:var(--disp);font-size:19px;font-weight:700;letter-spacing:-.015em;
+  margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-right{text-align:right;flex:0 0 auto}
+.tb-count{font-family:var(--disp);font-size:25px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.tb-lab{font-size:11px;letter-spacing:.14em;color:var(--dim);margin-top:4px}
+#bar{height:2px;background:var(--line);position:relative;overflow:hidden;flex:0 0 auto;display:none}
+#bar.on{display:block}
+#barfill{position:absolute;inset:0 auto 0 0;width:0;background:var(--signal);transition:width .3s ease}
+
+/* ---------- screens ---------- */
+main{flex:1;position:relative;min-height:0}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;padding:0 18px calc(var(--bot) + 18px)}
+.screen.on{display:flex}
+.screen.flush{padding:0}
+.eyebrow{font-size:11px;letter-spacing:.2em;color:var(--dim);margin-bottom:8px}
+h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px}
+.sub{font-family:var(--disp);font-weight:500;color:var(--text2);font-size:15px;
+  line-height:1.55;margin:0;text-wrap:balance}
+.spacer{flex:1}
+
+/* ---------- buttons ---------- */
+.btn{
+  width:100%;padding:17px;border-radius:10px;background:var(--signal);color:#06210A;
+  box-shadow:0 0 26px rgba(57,255,20,.26);
+  font-weight:700;letter-spacing:.08em;font-size:14.5px;text-align:center;
+  transition:transform .08s,filter .15s
+}
+.btn:active{transform:scale(.985);filter:brightness(.9)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);box-shadow:none}
+.btn.danger{background:transparent;border:1px solid var(--red);color:var(--red);box-shadow:none}
+.btn:disabled{opacity:.32;pointer-events:none}
+.btn.sm{padding:15px;font-size:13px;min-height:48px}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+
+/* ---------- splash ---------- */
+#s-splash{align-items:center;justify-content:center;background:#000}
+.mark{display:flex;flex-direction:column;align-items:center;gap:18px}
+#s-splash #logo,#s-splash .wordmark{animation:markIn .7s cubic-bezier(.2,.8,.2,1) both}
+#s-splash .scanlabel{animation:markIn .6s cubic-bezier(.2,.8,.2,1) .45s both}
+#s-splash .boot{animation:fadeIn .5s ease .8s both}
+@keyframes markIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+#logo{height:164px;max-width:82vw;object-fit:contain}
+.scanlabel{font-size:11px;letter-spacing:.42em;color:var(--signal);text-indent:.42em}
+.wordmark{font-family:var(--disp);font-weight:700;font-size:30px;letter-spacing:-.03em}
+.wordmark b{color:var(--signal)}
+.boot{font-size:9.5px;letter-spacing:.3em;color:var(--dim)}
+
+/* ---------- start ---------- */
+#s-start,#s-signin{justify-content:center;gap:22px}
+#s-history{padding-left:12px;padding-right:12px}
+.startmark{display:flex;flex-direction:column;align-items:center}
+#logo2{height:96px;max-width:66vw;object-fit:contain}
+.wordmark.alt{font-size:24px}
+.stat{border-top:1px solid var(--line);padding:14px 0;display:flex;align-items:baseline;
+  justify-content:space-between;gap:14px}
+.stat span:first-child{font-size:11px;letter-spacing:.16em;color:var(--dim);flex:0 0 auto}
+.stat span:last-child{font-family:var(--disp);font-weight:600;font-size:14px;
+  color:var(--text);text-align:right}
+.stat b{font-family:var(--disp);font-size:14px;color:var(--signal);font-weight:600}
+.flipcard{
+  border:1px solid var(--line);border-radius:10px;padding:13px 14px;background:var(--panel);
+  display:flex;gap:12px;align-items:center
+}
+.statval{display:flex;align-items:center;gap:10px;min-width:0}
+#stClicker{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#pairBtn{font-size:11px;letter-spacing:.12em;color:var(--signal);border:1px solid var(--line);
+  border-radius:8px;padding:11px 12px;min-height:44px;margin:-11px 0}
+#pairBtn:active{background:var(--panel2)}
+.flipcard svg{flex:0 0 auto}
+.flipcard p{margin:0;font-family:var(--disp);font-weight:500;font-size:13.5px;
+  line-height:1.5;color:var(--text2)}
+.flipcard p b{color:var(--amber);font-weight:700}
+
+/* ---------- camera stage ---------- */
+.stage{position:relative;flex:1;background:#000;overflow:hidden;min-height:0}
+.stage video,.stage canvas.live{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;transform:rotate(180deg)}
+.veil{position:absolute;inset:0;pointer-events:none}
+.focustap{position:absolute;inset:0;cursor:crosshair}
+.focusring{position:absolute;width:62px;height:62px;margin:-31px 0 0 -31px;border-radius:50%;
+  border:2px solid var(--signal);opacity:0;pointer-events:none}
+.focusring.go{animation:focusPop .65s ease-out}
+@keyframes focusPop{0%{opacity:1;transform:scale(1.35)}70%{opacity:1;transform:scale(1)}
+  100%{opacity:0;transform:scale(1)}}
+
+/* guide frame — the signature element */
+#guide{position:absolute;pointer-events:none}
+#guide .br{position:absolute;width:34px;height:34px;border:3px solid var(--signal)}
+#guide .br.tl{top:-1px;left:-1px;border-right:0;border-bottom:0;border-radius:3px 0 0 0}
+#guide .br.tr{top:-1px;right:-1px;border-left:0;border-bottom:0;border-radius:0 3px 0 0}
+#guide .br.bl{bottom:-1px;left:-1px;border-right:0;border-top:0;border-radius:0 0 0 3px}
+#guide .br.br2{bottom:-1px;right:-1px;border-left:0;border-top:0;border-radius:0 0 3px 0}
+#guide.armed .br{border-color:var(--amber)}
+#guide::after{content:'';position:absolute;inset:0;border:1px solid rgba(57,255,20,.16);border-radius:3px}
+#guide.armed::after{border-color:rgba(255,176,32,.3)}
+.mask{position:absolute;background:rgba(0,0,0,.84);pointer-events:none}
+
+.hud{position:absolute;left:0;right:0;top:0;padding:12px 14px;display:flex;
+  justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
+.pill{background:rgba(0,0,0,.72);border:1px solid var(--line);border-radius:100px;
+  padding:8px 13px;font-size:12px;letter-spacing:.1em;backdrop-filter:blur(8px)}
+.pill.act{padding:14px 17px;font-size:12.5px;min-height:46px;display:flex;align-items:center}
+.pill.live{color:var(--signal)}
+.pill.warn{color:var(--amber);border-color:rgba(255,176,32,.4)}
+.pill.act{pointer-events:auto;cursor:pointer}
+.sidehint{position:absolute;left:0;right:0;bottom:0;text-align:center;padding:0 20px 14px;
+  pointer-events:none}
+.caplabel{display:inline-block;font-family:var(--disp);font-weight:700;font-size:34px;
+  letter-spacing:-.02em;color:#fff;padding:13px 30px;border-radius:100px;
+  background:rgba(0,0,0,.66);backdrop-filter:blur(10px);transition:color .15s,background .15s}
+.caplabel.arm{color:var(--amber);background:rgba(0,0,0,.82)}
+@media (max-height:700px){
+  .caplabel{font-size:27px;padding:10px 24px}
+  .capnote{font-size:13px;margin-top:7px}
+  .hudthumb{width:42px;height:58px}
+}
+.capnote{margin-top:9px;font-size:15px;font-weight:500;letter-spacing:.16em;color:#fff;
+  text-shadow:0 2px 12px #000,0 0 20px #000}
+
+/* shutter dock */
+.dock{flex:0 0 auto;padding:14px 18px calc(var(--bot) + 16px);background:var(--panel);
+  border-top:1px solid var(--line);display:flex;align-items:center;gap:14px}
+.dock .side{flex:1;min-width:0}
+.shutter{position:relative;width:74px;height:74px;flex:0 0 74px}
+.shutter button{position:absolute;inset:8px;border-radius:50%;background:var(--text);
+  transition:transform .08s}
+.shutter button:active{transform:scale(.9)}
+.shutter.armed button{background:var(--amber)}
+.shutter svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.shutter circle{fill:none;stroke-width:3}
+.ring-bg{stroke:var(--line)}
+.ring-fg{stroke:var(--amber);stroke-linecap:round;transition:stroke-dashoffset .1s linear}
+.hudthumb{width:50px;height:70px;border-radius:6px;overflow:hidden;display:none;
+  border:1.5px solid rgba(255,255,255,.55);background:#000;box-shadow:0 3px 14px rgba(0,0,0,.6)}
+.hudthumb.on{display:block}
+.hudthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.toggle{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;
+  background:var(--panel)}
+.toggle button{padding:13px 15px;font-size:12.5px;font-weight:700;letter-spacing:.09em;
+  color:var(--dim);min-height:48px;transition:background .15s,color .15s}
+#autoOn.on{background:var(--signal);color:#06210A}
+#autoOff.on{background:#fff;color:#000}
+
+/* ---------- box identity block ---------- */
+.boxid{display:flex;gap:14px;align-items:center;border:1px solid var(--line);
+  border-radius:12px;background:var(--panel);padding:14px;flex:0 0 auto}
+.boxid .bpic{width:78px;height:78px;flex:0 0 78px;border-radius:7px;border:1px solid var(--line);
+  object-fit:contain;background:#fff;cursor:zoom-in}
+.boxid .bmid{flex:1;min-width:0}
+.boxid .bnum{font-size:18px;letter-spacing:.1em;color:var(--signal);line-height:1.1}
+.boxid .bname{font-family:var(--disp);font-size:22px;font-weight:700;letter-spacing:-.02em;
+  margin:5px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
+.boxid .adminlink{color:var(--signal);text-decoration:none;font-size:12.5px;letter-spacing:.1em;
+  display:inline-flex;align-items:center;min-height:44px;margin:-11px 0}
+.boxid .braw{font-size:11px;letter-spacing:.06em;color:var(--dim);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.boxid .brescan{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;flex:0 0 auto;min-width:82px;min-height:60px;padding:11px 12px;
+  border:1px solid var(--line);border-radius:11px;background:var(--panel2);
+  font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.08em;
+  color:var(--text);line-height:1;transition:background .15s,border-color .15s}
+.boxid .brescan svg{color:var(--signal)}
+.boxid .brescan:active{background:#1B231E;border-color:var(--signal)}
+#s-count .boxid .bpic{width:96px;height:96px;flex:0 0 96px}
+#s-count .boxid .bname{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden;text-overflow:clip}
+/* the complete screen keeps the thin bar, so its copy stays compact */
+#s-complete .boxid{padding:11px;gap:11px}
+#s-complete .boxid .bpic{width:56px;height:56px;flex:0 0 56px}
+#s-complete .boxid .bnum{font-size:14px}
+#s-complete .boxid .bname{font-size:17px;font-weight:600;margin:3px 0 4px}
+
+/* ---------- count screen ---------- */
+#s-count{overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+#s-review{padding-left:12px;padding-right:12px}
+.revhead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding:13px 0 0}
+.revhead h1{font-size:23px;margin:0}
+.revhead #revDrop{flex:0 0 auto;font-size:11.5px;letter-spacing:.12em;color:var(--red);
+  border:1px solid rgba(255,59,78,.4);border-radius:8px;padding:12px 13px;min-height:44px}
+.revhead #revDrop:active{background:rgba(255,59,78,.12)}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:56px;
+  gap:9px;margin-top:11px;flex:0 0 auto}
+.numpad button{border:1px solid var(--line);border-radius:9px;
+  font-family:var(--disp);font-size:21px;font-weight:600;background:var(--panel)}
+.numpad button.wide{grid-column:span 2}
+.numpad button.clear{font-family:var(--mono);font-size:12px;font-weight:500;
+  letter-spacing:.14em;color:var(--red);border-color:rgba(255,59,78,.35)}
+.numpad button:active{background:var(--panel2)}
+.readout{padding:14px 2px 0;display:flex;align-items:baseline;gap:12px;
+  text-align:left;border:0;background:none;border-radius:0}
+.readout .n{font-family:var(--disp);font-size:40px;font-weight:700;line-height:1;
+  letter-spacing:-.04em;color:var(--signal);min-width:66px}
+.readout .l{font-size:11px;letter-spacing:.18em;color:var(--dim);flex:1;text-align:right}
+.chips{display:flex;gap:6px;margin-top:9px}
+.chips button{flex:1;padding:15px 0;min-height:50px;border:1px solid var(--line);border-radius:7px;
+  font-family:var(--disp);font-weight:600;font-size:14px;color:var(--text);background:var(--panel)}
+.chips button:active{color:var(--signal);border-color:var(--signal)}
+.chips button.on{color:var(--signal);border-color:var(--signal);background:var(--panel2)}
+
+/* ---------- hold / processing ---------- */
+#s-hold{align-items:center;justify-content:center;gap:18px}
+.holdimg{max-height:44vh;border-radius:6px;border:1px solid var(--line)}
+.holdbar{width:180px;height:2px;background:var(--line);overflow:hidden;border-radius:2px}
+.holdbar i{display:block;height:100%;background:var(--signal);width:0;animation:fill 2s linear forwards}
+@keyframes fill{to{width:100%}}
+
+/* ---------- review ---------- */
+.pair{display:flex;gap:10px;flex:1;min-height:0;margin:12px 0;align-items:center}
+.pair figure{flex:1;margin:0;display:flex;flex-direction:column;gap:9px;min-width:0}
+.pair .frame{position:relative;width:100%;aspect-ratio:.66;max-height:100%;
+  border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#0A0C0B;
+  cursor:pointer;touch-action:manipulation}
+.pair .frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.pair .frame.empty{border-style:dashed;border-color:var(--red)}
+.pair .frame.empty::before{content:'NO IMAGE — TAP TO RETAKE';position:absolute;inset:0;
+  display:grid;place-items:center;padding:14px;text-align:center;font-size:11px;
+  letter-spacing:.1em;color:var(--red);line-height:1.5}
+.pair .frame::after{content:'TAP TO ENLARGE';position:absolute;left:0;right:0;bottom:0;
+  padding:9px;font-size:11.5px;letter-spacing:.1em;text-align:center;
+  background:rgba(0,0,0,.72);color:#fff;opacity:0;transition:opacity .2s}
+.pair .frame:active::after{opacity:1}
+.caprow{display:flex;align-items:center;justify-content:center;gap:9px}
+.caprow span{font-size:13px;letter-spacing:.14em;color:var(--dim)}
+.caprow .retake{display:grid;place-items:center;width:44px;height:44px;margin:-9px 0;
+  border-radius:9px;color:var(--red)}
+.caprow .retake:active{background:rgba(255,59,78,.14)}
+
+/* ---------- complete ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(94px,1fr));gap:9px;
+  align-content:start;overflow-y:auto;flex:1;padding:2px;margin:13px 0;
+  -webkit-overflow-scrolling:touch}
+.cell{border:1px solid var(--line);border-radius:7px;overflow:hidden;background:#0A0C0B;
+  position:relative;aspect-ratio:.70}
+.cell img{width:100%;height:100%;object-fit:cover}
+.cell span{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.82);
+  padding:4px 7px;border-radius:4px;font-size:11.5px;font-weight:500;color:var(--signal)}
+.summary{display:flex;gap:9px}
+.summary div{flex:1;border:1px solid var(--line);border-radius:10px;padding:13px 12px;
+  background:var(--panel);text-align:left}
+.summary b{display:block;font-family:var(--disp);font-size:30px;font-weight:700;
+  letter-spacing:-.03em;line-height:1;color:var(--signal)}
+.summary small{display:block;margin-top:7px;font-size:11px;letter-spacing:.13em;color:var(--dim)}
+
+/* ---------- misc ---------- */
+.field{width:100%;padding:15px;background:var(--panel);border:1px solid var(--line);
+  border-radius:9px;color:var(--text);font-family:var(--mono);font-size:15px;letter-spacing:.1em}
+.toast{position:fixed;left:50%;bottom:calc(var(--bot) + 100px);transform:translate(-50%,20px);
+  background:var(--panel2);border:1px solid var(--line);border-radius:100px;padding:11px 19px;
+  font-size:12.5px;letter-spacing:.06em;opacity:0;transition:.25s;pointer-events:none;z-index:50;
+  max-width:88vw;text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.94);display:none;place-items:center;
+  z-index:60;padding:24px}
+#lightbox.on{display:grid}
+#lightbox img{max-width:100%;max-height:80vh;border:1px solid var(--line);border-radius:8px}
+#pairbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;place-items:center;
+  z-index:70;padding:22px}
+#pairbox.on{display:grid}
+.pairinner{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:20px}
+.pairinner h1{margin:4px 0 8px}
+.pairkey{margin:16px 0;padding:18px;border:1px dashed var(--line);border-radius:10px;
+  text-align:center;font-size:15px;letter-spacing:.08em;color:var(--dim)}
+.pairkey.got{border-style:solid;border-color:var(--signal);color:var(--signal)}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header id="appbar">
+    <button id="homeBtn" aria-label="Back to home screen">
+      <img id="logo3" alt="Arena Club" style="display:none">
+      <span class="wordmark mini" id="wordmark3">ARENA<b>·</b>CLUB</span>
+    </button>
+    <div id="demoBadge">SIMULATED · NO CAMERA</div>
+    <button id="menuBtn" aria-label="Menu" aria-haspopup="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+        <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
+      </svg>
+    </button>
+  </header>
+  <div id="menuBack"></div>
+  <div id="menu" role="menu">
+    <div class="menuhead">
+      <div class="eyebrow" style="margin-bottom:4px">SIGNED IN</div>
+      <div class="menuname" id="menuName">—</div>
+    </div>
+    <button id="menuHistory" role="menuitem">History</button>
+    <button id="menuSound" role="menuitem">Sound on</button>
+    <button id="menuSignout" role="menuitem">Sign out</button>
+  </div>
+
+  <header id="topbar">
+    <img id="qrthumb" alt="Scanned box code">
+    <div class="tb-mid">
+      <div class="tb-num" id="tbNum">—</div>
+      <div class="tb-name" id="tbName">—</div>
+    </div>
+    <div class="tb-right">
+      <div class="tb-count" id="tbCount">0/0</div>
+      <div class="tb-lab">CARDS</div>
+    </div>
+  </header>
+  <div id="bar"><div id="barfill"></div></div>
+
+  <main>
+    <!-- 1 · SPLASH -->
+    <section id="s-splash" class="screen on">
+      <div class="mark">
+        <img id="logo" alt="Arena Club" style="display:none">
+        <div class="wordmark" id="wordmark">ARENA<b>·</b>CLUB</div>
+        <div class="scanlabel">SCAN</div>
+        <div class="boot" id="bootline">INITIALISING</div>
+      </div>
+    </section>
+
+    <!-- 1b · SIGN IN -->
+    <section id="s-signin" class="screen">
+      <div class="startmark">
+        <img id="logo4" alt="Arena Club" style="display:none">
+        <div class="wordmark alt" id="wordmark4">ARENA<b>·</b>CLUB</div>
+      </div>
+      <div style="text-align:center">
+        <div class="eyebrow" style="margin-bottom:6px">SIGN IN</div>
+        <h1 style="font-size:26px">Who's scanning?</h1>
+        <p class="sub" style="max-width:290px;margin:8px auto 0">Your name is stamped on every
+          box, so the history shows who scanned what.</p>
+      </div>
+      <input class="field" id="signName" placeholder="Name or email"
+             autocomplete="name" autocapitalize="words" spellcheck="false">
+      <div id="recentUsers" class="chips" style="flex-wrap:wrap"></div>
+      <div class="spacer"></div>
+      <button class="btn" id="signGo" disabled>CONTINUE</button>
+    </section>
+
+    <!-- 2 · START -->
+    <section id="s-start" class="screen">
+      <div class="startmark">
+        <img id="logo2" alt="Arena Club" style="display:none">
+        <div class="wordmark alt" id="wordmark2">ARENA<b>·</b>CLUB</div>
+        <div class="scanlabel" style="margin-top:9px">SCAN</div>
+      </div>
+      <div style="text-align:center">
+        <div class="eyebrow" style="margin-bottom:6px">STATION READY</div>
+        <p class="sub" style="max-width:300px;margin:0 auto">Scan the box, set a card count,
+          then capture the front and back of each card.</p>
+      </div>
+      <div>
+        <div class="stat"><span>CAMERA</span><span id="stCam">checking…</span></div>
+        <div class="stat"><span>ORIENTATION</span><b>180° CORRECTED</b></div>
+        <div class="stat"><span>DESTINATION</span><span id="stDest">object store · not linked</span></div>
+        <div class="stat"><span>LAST BOX</span><span id="stLast">none</span></div>
+        <div class="stat" style="border-bottom:1px solid var(--line)">
+          <span>CLICKER</span>
+          <span class="statval">
+            <span id="stClicker">any key works</span>
+            <button id="pairBtn">PAIR</button>
+          </span>
+        </div>
+      </div>
+      <div class="flipcard">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFB020" stroke-width="1.5">
+          <rect x="7" y="2" width="10" height="20" rx="2"/><circle cx="12" cy="6" r="1.4"/>
+          <path d="M3 12h2M19 12h2" stroke-linecap="round"/>
+        </svg>
+        <p>Phone mounts <b>inverted</b> on the stand. Frames are rotated before saving,
+          so stored images come out upright.</p>
+      </div>
+      <button class="btn" id="btnStart">SCAN BOX</button>
+    </section>
+
+    <!-- 3 · QR -->
+    <section id="s-qr" class="screen flush">
+      <div class="stage" id="stageQR">
+        <div class="hud">
+          <div class="pill live" id="qrStatus">● LOOKING FOR CODE</div>
+          <div class="pill act" id="qrManual">ENTER CODE</div>
+        </div>
+        <div id="qrGuide" class="veil"></div>
+        <div class="sidehint">
+          <div class="caplabel">Scan Box</div>
+        </div>
+      </div>
+      <div class="dock">
+        <div class="side"><button class="btn ghost sm" id="qrCancel">CANCEL</button></div>
+        <div class="side"><button class="btn sm" id="qrDemo">SKIP · USE 8170</button></div>
+      </div>
+    </section>
+
+    <!-- 4 · COUNT -->
+    <section id="s-count" class="screen">
+      <div class="eyebrow" style="padding-top:18px">BOX CONFIRMED</div>
+      <div class="boxid">
+        <img class="bpic" alt="Box photo">
+        <div class="bmid">
+          <div class="bnum">—</div>
+          <div class="bname">—</div>
+          <div class="braw">—</div>
+        </div>
+        <button class="brescan" aria-label="Scan the box code again">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+               stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12a9 9 0 1 1-3.4-7"/><path d="M21 3.5v6h-6"/>
+          </svg>
+          <span>RESCAN</span>
+        </button>
+      </div>
+      <div class="readout">
+        <div class="n" id="cntVal">0</div><div class="l">CARDS IN THIS BOX</div>
+      </div>
+      <div class="chips">
+        <button data-q="9">9</button><button data-q="10">10</button>
+        <button data-q="12">12</button><button data-q="24">24</button>
+        <button data-q="25">25</button>
+      </div>
+      <div class="numpad">
+        <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+        <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+        <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+        <button data-k="0" class="wide">0</button><button data-k="clear" class="clear">CLEAR</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="row" style="margin-top:11px">
+        <button class="btn ghost" id="cntBack">BACK</button>
+        <button class="btn" id="cntGo" disabled>CONFIRM</button>
+      </div>
+    </section>
+
+    <!-- 5 · CAPTURE -->
+    <section id="s-capture" class="screen flush">
+      <div class="stage" id="stageCap">
+        <div class="mask" id="mT"></div><div class="mask" id="mB"></div>
+        <div class="mask" id="mL"></div><div class="mask" id="mR"></div>
+        <div id="guide">
+          <i class="br tl"></i><i class="br tr"></i><i class="br bl"></i><i class="br br2"></i>
+        </div>
+        <div class="hud">
+          <div class="pill live" id="capCard">8170 · CARD 01/10</div>
+          <div class="hudthumb" id="capThumb"></div>
+        </div>
+        <div class="focustap" id="focusTap"></div>
+        <div class="focusring" id="focusRing"></div>
+        <div class="sidehint">
+          <div class="caplabel" id="capLabel">Front Scan</div>
+          <div class="capnote">PLACE CARD</div>
+        </div>
+      </div>
+      <div class="dock">
+        <div class="side" style="display:flex;justify-content:flex-end">
+          <div class="toggle">
+            <button id="autoOn">AUTO</button><button id="autoOff" class="on">MANUAL</button>
+          </div>
+        </div>
+        <div class="shutter" id="shutter">
+          <svg viewBox="0 0 74 74"><circle class="ring-bg" cx="37" cy="37" r="35"/>
+            <circle class="ring-fg" id="ring" cx="37" cy="37" r="35"
+              stroke-dasharray="219.9" stroke-dashoffset="219.9"/></svg>
+          <button id="btnShoot" aria-label="Capture"></button>
+        </div>
+        <div class="side" style="text-align:right">
+          <button class="btn ghost sm" id="capAbort" style="width:auto;padding:11px 13px">END BOX</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · HOLD -->
+    <section id="s-hold" class="screen">
+      <img class="holdimg" id="holdImg" alt="Captured card">
+      <div class="eyebrow" style="margin:0">WRITING CARD IMAGES</div>
+      <div class="holdbar"><i id="holdFill"></i></div>
+    </section>
+
+    <!-- 7 · REVIEW -->
+    <section id="s-review" class="screen">
+      <div class="revhead">
+        <div>
+          <div class="eyebrow" id="revEye" style="margin-bottom:3px">CARD 01 OF 10</div>
+          <h1>Confirm both sides</h1>
+        </div>
+        <button id="revDrop">DISCARD</button>
+      </div>
+      <div class="pair">
+        <figure>
+          <div class="frame" id="revF"><img id="revFimg" alt="Captured front"></div>
+          <div class="caprow"><span>FRONT</span>
+            <button class="retake" data-side="front" aria-label="Retake the front">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-3.4-7"/><path d="M21 3.5v6h-6"/></svg>
+            </button>
+          </div>
+        </figure>
+        <figure>
+          <div class="frame" id="revB"><img id="revBimg" alt="Captured back"></div>
+          <div class="caprow"><span>BACK</span>
+            <button class="retake" data-side="back" aria-label="Retake the back">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-3.4-7"/><path d="M21 3.5v6h-6"/></svg>
+            </button>
+          </div>
+        </figure>
+      </div>
+      <button class="btn" id="revOk">CONFIRM · NEXT CARD</button>
+    </section>
+
+    <!-- 8 · COMPLETE -->
+    <section id="s-complete" class="screen">
+      <div style="padding-top:16px">
+        <div class="eyebrow" id="cmpEye">ALL CARDS CAPTURED</div>
+        <h1 id="cmpTitle" style="margin-bottom:12px">Box ready</h1>
+      </div>
+      <div class="boxid">
+        <img class="bpic" alt="Box photo">
+        <div class="bmid">
+          <div class="bnum">—</div>
+          <div class="bname">—</div>
+          <div class="braw">—</div>
+        </div>
+      </div>
+      <div class="grid" id="cmpGrid"></div>
+      <div class="summary" style="margin-bottom:11px">
+        <div><b id="cmpCards">0</b><small id="cmpCardsL">CARDS</small></div>
+        <div><b id="cmpImgs">0</b><small id="cmpImgsL">IMAGES</small></div>
+        <div><b id="cmpMb">0</b><small id="cmpMbL">QUEUED</small></div>
+      </div>
+      <div class="row" style="margin-bottom:9px">
+        <button class="btn ghost sm" id="cmpJson">EXPORT MANIFEST</button>
+      </div>
+      <button class="btn" id="cmpDone">COMPLETE BOX</button>
+    </section>
+    <!-- 9 · HISTORY -->
+    <section id="s-history" class="screen">
+      <div class="revhead">
+        <div>
+          <div class="eyebrow" style="margin-bottom:3px">BOXES SCANNED</div>
+          <h1>History</h1>
+        </div>
+        <button id="histBack">BACK</button>
+      </div>
+      <div id="histList" class="histlist"></div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="lightbox"><img id="lightImg" alt="Box code"></div>
+
+<div id="pairbox">
+  <div class="pairinner">
+    <div class="eyebrow">PAIR A CLICKER</div>
+    <h1 id="pairTitle" style="font-size:22px">Press your capture button</h1>
+    <p class="sub" id="pairBody">Pair the remote to this phone in Bluetooth settings first.
+      Then press the button you want to use for taking a photo.</p>
+    <div class="pairkey" id="pairKey">Waiting for a key…</div>
+    <div class="row">
+      <button class="btn ghost sm" id="pairCancel">CANCEL</button>
+      <button class="btn sm" id="pairNext">SKIP THIS STEP</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   SCAN APP — Arena Club box and card capture
+   Single file. Deploy as-is.
+   Drop-in points marked  ▶ CONFIG  are the only things that need
+   real infrastructure. Everything else runs standalone.
+   ============================================================ */
+
+/* ▶ CONFIG 1 — brand mark. Traced to vector from the supplied art, so it stays sharp
+   at any size. Replace with the official SVG whenever brand hands one over. */
+const LOGO_SRC = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NTIuMDAwMDAwIDc5Mi4wMDAwMDAiPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAuMDAwMDAwLDc5Mi4wMDAwMDApIHNjYWxlKDAuMTAwMDAwLC0wLjEwMDAwMCkiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0ibm9uZSI+PHBhdGggZD0iTTIwOTYgNjMwNCBjLTE0IC0xNCAtMTYgLTg0IC0xNiAtNjI0IDAgLTU0MCAyIC02MTAgMTYgLTYyNCAyMyAtMjMKMjY1IC0yMyAyODggMCAxNCAxNCAxNiA3MCAxNiA0NjQgMCAzOTQgMiA0NTAgMTYgNDY0IDE0IDE0IDE2OCAxNiAxNTQ0IDE2CjEzNzYgMCAxNTMwIDIgMTU0NCAxNiAyMyAyMyAyMyAyNjUgMCAyODggLTE0IDE0IC0xODIgMTYgLTE3MDQgMTYgLTE1MjIgMAotMTY5MCAtMiAtMTcwNCAtMTZ6Ii8+PHBhdGggZD0iTTEzNjQgNDc2NCBjLTE1IC0xOSAtNDAgLTQyIC01NiAtNTAgLTI2IC0xMyAtMjggLTE5IC0yOCAtNzQgMCAtNTkKMCAtNjAgLTQwIC04MCAtNDAgLTIwIC00MCAtMjEgLTQwIC04MCAwIC01OSAwIC02MCAtNDAgLTgwIC00MCAtMjAgLTQwIC0yMQotNDAgLTgwIDAgLTU5IDAgLTYwIC00MCAtODAgLTQwIC0yMCAtNDAgLTIxIC00MCAtODAgMCAtNTYgLTIgLTYwIC0yOSAtNzUKLTE2IC04IC0zOSAtMjggLTUxIC00NSAtMTIgLTE3IC0zNSAtMzcgLTUwIC00NSAtMjcgLTE0IC0yOSAtMjAgLTMyIC03NyAtMwotNTcgLTUgLTYzIC0zMyAtNzggLTU1IC0zMCAtNjggLTk4IC0yOCAtMTQyIDE0IC0xNiAzNCAtMTggMTgwIC0xOCA5NCAwIDE3Mwo0IDE4NCAxMCAxNSA5IDE5IDIyIDE5IDcwIDAgNTUgMiA2MSAyOCA3NCAxNiA4IDQxIDMxIDU2IDUwIDI3IDM2IDI3IDM2IDMxNgozNiAyODkgMCAyODkgMCAzMTYgLTM2IDE1IC0xOSA0MCAtNDIgNTYgLTUwIDI2IC0xMyAyOCAtMTkgMjggLTc0IDAgLTQ3IDQKLTYxIDE4IC02OSAyMSAtMTEgMzQzIC0xOCAzNjAgLTcgNyA0IDEyIDIzIDEyIDQyIDAgMzAgLTQgMzUgLTMwIDQxIC0zOCA3Ci01MCAyOCAtNTAgODcgMCAzOSAtNCA0OCAtMjcgNjMgLTM5IDI1IC00MyAzMiAtNDMgOTAgMCA1MSAtMSA1MyAtNDAgNzMgLTQwCjIwIC00MCAyMSAtNDAgODAgMCA1NiAtMiA2MCAtMjkgNzUgLTE2IDggLTM5IDI4IC01MSA0NSAtMTIgMTcgLTM1IDM3IC01MSA0NQotMjcgMTUgLTI5IDE5IC0yOSA3NSAwIDU5IDAgNjAgLTQwIDgwIC00MCAyMCAtNDAgMjEgLTQwIDgwIDAgNTkgMCA2MCAtNDAgODAKLTQwIDIwIC00MCAyMSAtNDAgODAgMCA0OCAtNCA2MSAtMTkgNzAgLTEyIDYgLTEwMyAxMCAtMjI1IDEwIC0yMDUgMCAtMjA1IDAKLTIzMiAtMzZ6IG0zMTMgLTI5NiBjNCAtNyA4IC00MCA4IC03MiAwIC01NSAyIC02MCAzMCAtNzYgNTUgLTMwIDY4IC05OCAyOAotMTQyIC0xNCAtMTYgLTMzIC0xOCAtMTQzIC0xOCAtMTE2IDAgLTEyOSAyIC0xNDYgMjEgLTEyIDEzIC0xOSAzNSAtMTkgNjEgMAozMiA2IDQ1IDMwIDY0IDE3IDE0IDM1IDI5IDQwIDM1IDYgNyAyNiAyOCA0NSA0OCAyMCAyMCA0NCA0OCA1MyA2NCAxOSAyOSA1OQozNyA3NCAxNXoiLz48cGF0aCBkPSJNMjQxNiA0Nzg0IGMtMTQgLTEzIC0xNiAtNjUgLTE2IC00MTcgMCAtMjIxIDMgLTQ0NiA3IC01MDAgNiAtOTIgNwotOTggMzAgLTEwMyAxMyAtNCAzNSAtMjQgNDkgLTQ1IDI0IC0zOSAyNCAtMzkgMTEzIC0zOSAxMTcgMCAxMjEgNCAxMjEgMTIwIDAKNzEgMyA5MiAxNyAxMDIgOSA3IDM1IDMyIDU3IDU2IDQyIDQyIDQyIDQyIDI0OCA0MiAyMDcgMCAyMDcgMCAyMzQgLTM2IDE1Ci0xOSA0MCAtNDIgNTYgLTUwIDI2IC0xMyAyOCAtMTkgMjggLTc0IDAgLTU1IDIgLTYxIDI4IC03NCAxNiAtOCA0MSAtMzEgNTYKLTUwIDI3IC0zNiAyNyAtMzYgMTU1IC0zNiA4OSAwIDEzMyA0IDE0NSAxMyAxNiAxMiAxOCAzMCAxOCAxNDcgMCAxMjAgLTIgMTM2Ci0xOCAxNDUgLTExIDUgLTM0IDI2IC01MyA0NSAtMTkgMTkgLTQzIDM5IC01NCA0NSAtNDcgMjQgLTQ3IDY2IDAgOTAgMTEgNiAzNQoyNiA1NCA0NSAxOSAxOSA0MiA0MCA1MiA0NSAxNiA5IDE5IDI0IDE4IDEyNSAwIDYzIDAgMTI1IDAgMTM3IC0xIDE2IC0xMyAyOQotNDEgNDMgLTQwIDIwIC00MCAyMSAtNDAgODAgMCA1NSAtMiA2MSAtMjggNzQgLTE2IDggLTQxIDMxIC01NiA1MCAtMjcgMzYKLTI3IDM2IC01OTYgMzYgLTUwNCAwIC01NzAgLTIgLTU4NCAtMTZ6IG0xMDEwIC0zMjUgYzEyIC0xMyAxOSAtMzUgMTkgLTYxIDAKLTMyIC02IC00NSAtMzAgLTY0IC00MCAtMzIgLTQyIC0zNSAtNjYgLTY2IC0yMCAtMjggLTIwIC0yOCAtMzA5IC0yOCAtMjQ5IDAKLTI5MSAyIC0zMDQgMTYgLTEyIDEyIC0xNiAzNyAtMTYgMTA0IDAgNjcgNCA5MiAxNiAxMDQgMTMgMTQgNTkgMTYgMzQzIDE2CjMxOSAwIDMyOCAtMSAzNDcgLTIxeiIvPjxwYXRoIGQ9Ik0zOTM2IDQ3ODQgYy0xNCAtMTQgLTE2IC03NiAtMTggLTUyMiAwIC0yNzkgMCAtNTE4IDEgLTUzMiA0IC01MSAtMgotNTAgNTU5IC01MCAzNDEgMCA1MzAgNCA1NDMgMTAgMTcgMTAgMTkgMjIgMTkgMTEwIDAgODggLTIgMTAwIC0xOSAxMTAgLTEzIDYKLTE1MiAxMCAtMzg1IDEwIC0zMTggMCAtMzY3IDIgLTM4MCAxNiAtMjMgMjIgLTIzIDE4NiAwIDIwOCAxMyAxNCA2MiAxNiAzODIKMTYgMjAyIDAgMzcyIDQgMzc4IDggNTEgMzQgNDAgMTI5IC0xNyAxNTIgLTE2IDcgLTMxIDIxIC0zNCAzMSAtMTYgNDkgLTE1IDQ5Ci0zNjQgNDkgLTMxOSAwIC0zMjggMSAtMzQ3IDIxIC0yNSAyNyAtMjUgOTEgMCAxMTggMTkgMjEgMjcgMjEgMzgzIDIxIDIzMiAwCjM3MSA0IDM4NCAxMCAxNyAxMCAxOSAyMiAxOSAxMTAgMCA4OCAtMiAxMDAgLTE5IDExMCAtMTMgNiAtMjAyIDEwIC01NDUgMTAKLTQ2NCAwIC01MjYgLTIgLTU0MCAtMTZ6Ii8+PHBhdGggZD0iTTUyMTcgNDc4NyBjLTE2IC0xMSAtMTggLTUzIC0xOCAtNTQ3IDAgLTQ5NCAyIC01MzYgMTggLTU0NyAxMSAtOQo1OCAtMTMgMTQ0IC0xMyAxMDUgMCAxMzAgMyAxNDQgMTYgMTUgMTUgMTYgNTIgMTQgMzUxIC0yIDI4MCAwIDMzNiAxMiAzNDQgMjUKMTYgNDggMTAgNjYgLTE4IDI0IC0zOCAxMTMgLTEyNyAxNDEgLTE0MiAxOSAtMTAgMjIgLTIwIDIyIC03MSAwIC01MSAzIC02MQoyMyAtNzEgMTIgLTYgNTYgLTQ3IDk3IC04OSA0MSAtNDIgODUgLTgzIDk4IC04OSAxOSAtMTAgMjIgLTIwIDIyIC03MSAwIC01NQoyIC02MSAyOCAtNzQgMTYgLTggNDEgLTMxIDU2IC01MCAyNyAtMzYgMjcgLTM2IDI3NSAtMzYgMjE5IDAgMjUwIDIgMjYyIDE3CjExIDEzIDE1IDExNSAxNyA1NDMgMyA0NzggMiA1MjkgLTEzIDU0NCAtMjQgMjQgLTI2NiAyNCAtMjkwIDAgLTE1IC0xNSAtMTYKLTUyIC0xNCAtMzUxIDIgLTI4MCAwIC0zMzYgLTEyIC0zNDQgLTI1IC0xNiAtNDggLTEwIC02NiAxOCAtMjQgMzggLTExMyAxMjcKLTE0MCAxNDIgLTIwIDEwIC0yMyAyMCAtMjMgNzEgMCA1MSAtMyA2MSAtMjIgNzEgLTEzIDYgLTU3IDQ3IC05OCA4OSAtNDEgNDIKLTg1IDgzIC05NyA4OSAtMjAgMTAgLTIzIDIwIC0yMyA3MSAwIDU1IC0yIDYxIC0yOCA3NCAtMTYgOCAtNDEgMzEgLTU2IDUwCi0yNyAzNiAtMjcgMzYgLTI3NSAzNiAtMTgzIDAgLTI1MiAtMyAtMjY0IC0xM3oiLz48cGF0aCBkPSJNNzI4NCA0NzY0IGMtMTUgLTE5IC00MCAtNDIgLTU2IC01MCAtMjYgLTEzIC0yOCAtMTkgLTI4IC03NCAwIC01OQowIC02MCAtNDAgLTgwIC00MCAtMjAgLTQwIC0yMSAtNDAgLTgwIDAgLTU5IDAgLTYwIC00MCAtODAgLTQwIC0yMCAtNDAgLTIxCi00MCAtODAgMCAtNTkgMCAtNjAgLTQwIC04MCAtNDAgLTIwIC00MCAtMjEgLTQwIC04MCAwIC01NiAtMiAtNjAgLTI5IC03NQotMTYgLTggLTM5IC0yOCAtNTEgLTQ1IC0xMiAtMTcgLTM1IC0zNyAtNTEgLTQ1IC0yNyAtMTQgLTI5IC0yMCAtMjkgLTcwIDAKLTMxIC01IC01OSAtMTIgLTY1IC03IC01IC0yNCAtMTkgLTM4IC0yOSAtMjEgLTE2IC0yNSAtMjggLTI1IC02OSAwIC04MSAzCi04MiAxOTIgLTgyIDk0IDAgMTczIDQgMTg0IDEwIDE1IDkgMTkgMjIgMTkgNzAgMCA1NSAyIDYxIDI4IDc0IDE2IDggNDEgMzEKNTYgNTAgMjcgMzYgMjcgMzYgMzE2IDM2IDI4OSAwIDI4OSAwIDMxNiAtMzYgMTUgLTE5IDQwIC00MiA1NiAtNTAgMjYgLTEzIDI4Ci0xOSAyOCAtNzQgMCAtNDcgNCAtNjEgMTggLTY5IDEwIC01IDkzIC0xMSAxODUgLTEyIDE0MiAtMiAxNzAgMCAxODQgMTMgMjMKMjQgMTAgNjEgLTI5IDc5IC0zMSAxMyAtMzMgMTcgLTM2IDcyIC0zIDU1IC00IDU4IC00MyA3NyAtMzkgMjAgLTM5IDIxIC0zOQo4MCAwIDU5IDAgNjAgLTQwIDgwIC00MCAyMCAtNDAgMjEgLTQwIDgwIDAgNTkgMCA2MCAtNDAgODAgLTQwIDIwIC00MCAyMSAtNDAKODAgMCA1NiAtMiA2MCAtMjkgNzUgLTE2IDggLTM5IDI4IC01MSA0NSAtMTIgMTcgLTM1IDM3IC01MSA0NSAtMjcgMTUgLTI5IDE5Ci0yOSA3NSAwIDU5IDAgNjAgLTQwIDgwIC00MCAyMCAtNDAgMjEgLTQwIDgwIDAgNDggLTQgNjEgLTE5IDcwIC0xMiA2IC0xMDMKMTAgLTIyNSAxMCAtMjA1IDAgLTIwNSAwIC0yMzIgLTM2eiBtMzEzIC0yOTYgYzQgLTcgOCAtNDAgOCAtNzIgMCAtNTUgMiAtNjAKMzAgLTc2IDU1IC0zMCA2OSAtMTA1IDI3IC0xNDMgLTI2IC0yNCAtMjY2IC0yOCAtMjg4IC01IC0yNCAyNCAtMTEgNjEgMjggNzkKMjggMTIgMzMgMTkgMzYgNTQgNCA2NCAxMSA4MyAzMiA5MCAxMiA0IDMyIDI0IDQ2IDQ2IDI1IDQwIDY0IDUzIDgxIDI3eiIvPjxwYXRoIGQ9Ik0yMDk2IDM0MjQgYy0xNCAtMTQgLTE2IC0xNTAgLTE2IC0xMzQ0IDAgLTExOTQgMiAtMTMzMCAxNiAtMTM0NCAxNAotMTQgMjQ4IC0xNiAyNDIyIC0xNiAyNDA2IDAgMjQwNiAwIDI0NDggNDMgMjIgMjMgNDggNDggNTcgNTUgMTYgMTIgMTcgMTE1CjE3IDEzMDIgMCAxMTU4IC0yIDEyOTAgLTE2IDEzMDQgLTIzIDIzIC0yNjUgMjMgLTI4OCAwIC0xNCAtMTQgLTE2IC0xMzEgLTE2Ci0xMTQ0IDAgLTEwMzkgLTEgLTExMzAgLTE3IC0xMTQyIC05IC03IC0zNSAtMzIgLTU3IC01NSAtNDIgLTQzIC00MiAtNDMKLTIxMjggLTQzIC0xODg0IDAgLTIwODggMiAtMjEwMiAxNiAtMTQgMTQgLTE2IDEzNSAtMTYgMTE4NCAwIDEwNDkgLTIgMTE3MAotMTYgMTE4NCAtMTIgMTMgLTQwIDE2IC0xNDQgMTYgLTEwNCAwIC0xMzIgLTMgLTE0NCAtMTZ6Ii8+PHBhdGggZD0iTTM0NDAgMzQwMCBjLTMwIC0zOCAtMzUgLTQwIC04NSAtNDAgLTY4IDAgLTc1IC0xMSAtNzUgLTEyMCAwIC04MiAwCi04MiA2MiAtMTQzIDYxIC02MiA2MSAtNjIgMjIxIC02MiAxNTkgMCAxNTkgMCAxODMgMjggNDAgNDYgMjcgMTI3IC0xOSAxMjcKLTEzIDAgLTM2IC0xMyAtNTIgLTMwIC0yOCAtMjkgLTMyIC0zMCAtMTIxIC0zMCAtODUgMCAtOTQgMiAtMTA4IDIyIC0yMiAzMAotMjAgNzAgNCAxMDAgMTggMjQgMjUgMjYgMTUwIDMwIDEwNSA0IDEzNCA4IDE0OCAyMiAyMyAyMyAyMiA4OSAtMiAxMTUgLTE3CjE5IC0zMCAyMSAtMTQ3IDIxIC0xMjcgMCAtMTI3IDAgLTE1OSAtNDB6Ii8+PHBhdGggZD0iTTQwMDcgMzQyNiBjLTExIC0xMSAtMTMgLTQ2IC0xMCAtMTczIDUgLTE3OCA3IC0xOTkgMjcgLTIwNiA3IC0zIDg2Ci05IDE3NSAtMTMgMTQ3IC02IDE2MyAtNSAxODEgMTEgMjQgMjIgMjYgNDggNCA2OSAtMTIgMTIgLTM3IDE2IC0xMDkgMTYgLTEyMAowIC0xMjcgNyAtMTE4IDEyMCA2IDc3IDYgNzcgLTI2IDEwMSAtMTcgMTMgLTQwIDM4IC01MSA1NiAtMjEgMzUgLTQ5IDQzIC03MwoxOXoiLz48cGF0aCBkPSJNNDY0MCAzNDA3IGMtMTEgLTE4IC0zMyAtNDMgLTUwIC01NSAtMjkgLTIyIC0zMCAtMjUgLTMwIC0xMDggMCAtODYKMCAtODYgNjIgLTE0NyA2MSAtNjIgNjEgLTYyIDI1OCAtNjEgMTI3IDEgMjA1IDYgMjE5IDEzIDIwIDExIDIxIDE5IDIxIDE0NiAwCjExMSAtMyAxMzYgLTE2IDE0NyAtMjcgMjIgLTU4IDU1IC03NSA3OCAtMTIgMTggLTIxIDIyIC00MSAxNyAtMTUgLTQgLTI5IC0xNQotMzIgLTI1IC0zIC05IC0xIC02NiA0IC0xMjcgMTIgLTE1MyAxMSAtMTU1IC0xMjAgLTE1NSAtMTMwIDAgLTEzMiAyIC0xMjAKMTUwIDUgNTggOSAxMTAgMTAgMTE3IDAgMTggLTI5IDQzIC01MSA0MyAtMTIgMCAtMjggLTEzIC0zOSAtMzN6Ii8+PHBhdGggZD0iTTUzNTUgMzM5OCBjLTIyIC0yNCAtNDkgLTQ4IC01OSAtNTMgLTE3IC0xMCAtMTkgLTIzIC0xNyAtMTQ1IDEKLTEwNSA1IC0xMzcgMTYgLTE0NiAzOCAtMjggNDIyIC0yNiA0NTEgMyAyMiAyMiAyMCAzNDUgLTIgMzY3IC0xMyAxMyAtNDQgMTYKLTE4MiAxNiAtMTY3IDAgLTE2NyAwIC0yMDcgLTQyeiBtMjI2IC0xOTggYzEwIC02IDE5IC0xOSAxOSAtMzAgMCAtMzIgLTI4Ci01MCAtODAgLTUwIC01MiAwIC04MCAxOCAtODAgNTAgMCAxMSA4IDI0IDE4IDI5IDIyIDE0IDk4IDE0IDEyMyAxeiIvPjwvZz48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgwLjAwMDAwMCw3OTIuMDAwMDAwKSBzY2FsZSgwLjEwMDAwMCwtMC4xMDAwMDApIiBmaWxsPSIjNjg5NTNGIiBzdHJva2U9Im5vbmUiPjxwYXRoIGQ9Ik01Nzc2IDYzMDQgYy0yMyAtMjMgLTIzIC0yNjUgMCAtMjg4IDE0IC0xNCA3MCAtMTYgNDY0IC0xNiAzOTQgMAo0NTAgLTIgNDY0IC0xNiAxNCAtMTQgMTYgLTcwIDE2IC00NjQgMCAtMzk0IDIgLTQ1MCAxNiAtNDY0IDIzIC0yMyAyNjUgLTIzCjI4OCAwIDE0IDE0IDE2IDg0IDE2IDYyNCAwIDU0MCAtMiA2MTAgLTE2IDYyNCAtMTQgMTQgLTg0IDE2IC02MjQgMTYgLTU0MCAwCi02MTAgLTIgLTYyNCAtMTZ6Ii8+PC9nPjwvc3ZnPg==';
+
+/* ▶ CONFIG 2 — box lookup. Replace with a fetch to your admin API. */
+const BOX_REGISTRY = {
+  '8170': 'Kind · Box',
+  '8171': 'Kind · Box',
+  '8172': 'Kind · Box'
+};
+async function lookupBox(code){
+  // return (await fetch(`/api/boxes/${code}`)).json();
+  return { number: code, name: BOX_REGISTRY[code] || 'Unregistered box' };
+}
+
+/* ▶ CONFIG 3 — object storage. Swap for a presigned PUT to S3 / GCS. */
+const Storage = {
+  mode: 'queue',                        // 'queue' | 'presigned'
+  endpoint: '',                         // e.g. '/api/presign'
+  key(box, seq, side, id){
+    return `boxes/${box}/${String(seq).padStart(4,'0')}_${id}_${side}.jpg`;
+  },
+  async put(key, dataUrl){
+    if(this.mode === 'queue') return { key, status:'queued' };
+    const blob = await (await fetch(dataUrl)).blob();
+    const { url } = await (await fetch(`${this.endpoint}?key=${encodeURIComponent(key)}`)).json();
+    await fetch(url, { method:'PUT', body:blob, headers:{'Content-Type':'image/jpeg'} });
+    return { key, status:'stored' };
+  }
+};
+
+/* ▶ CONFIG 5 — how long the load screen holds. */
+const SPLASH_MS = 2000;
+
+/* ▶ REFERENCE — the production box label, as supplied.
+   Payload is an admin URL; the id is the last path segment.
+   Printed layout: id, then kind with its mark, then the sub line, then a large QR.  */
+const LABEL = { id:'8170', kind:'Kind', sub:'Box', payload:'admin.arenaclub.com/b/8170' };
+
+/* The production label itself, 1-bit and 1.1KB. Drawn into the simulated feed at native
+   size so its QR stays pixel-exact and the app decodes the real payload off it. */
+const LABEL_IMG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQgAAAGXAQAAAABnvfPEAAAEUUlEQVR42u2av47rRBTGf8e2NkFa5CkoKJDsR6CkYvMoe3uKLSmQPHkBxCPso4SOgoLbQYXTbYM0kRDKvbJ9KMZ2vLEnucqlQXemSGajz2fOfHP+zfGKcmUkRERE/J8Q7QR82EwgOoyaQhu+AnIlHX/W04PPvND04mgXZHSQau1lOHiYy+igo/ZzxzCbatqA0itYg1vebdV/7+A4RxyDhAwKOb7mW7ymMNnuZJVfTzLTRU4lARDtyLnfdYFzGZ41ZejkMqCjpAye7ZcDeUYXENqxKYGGzfLpr/kBdpf4aABVCnU0VEfmfCQgl21MhrmTkBXuuL9ipxv+9kefBBAtdJdlNKAWYJcFEMcP8KjvPWF2fYYf3UUaCqVQ8oYHx5IF+aliQquMszKAqHvSO0ioJ8ROVtGRumUZZTfyAu55aS/4vRxRDXnDF8vMTRDO70LAeps+Q5gRBxtYL9npbBcBO92lqssRJhk8LoP1K3Ej1rJSpbAr1Wby82S3T3wzKJTa1UmEfOKVQWsD5zIOV7z++7WMg2kHE97awCoNzgX0UH+yRwlq+r7zYhMTQrzwDOCyoFfWvADU63XIK3fD12oXQNg+UZqQptqHMVvujew3moU82yfD+rf38/zSDV8W2B2POjsX7y7uHq1zSB1UC+dioZGTb56t0mf8Y/KBFtTVYUTnIyv5DPGL5e6nIZhlU+KSU3rppipjFzj1z9nzoJpMwqybnOCCphsys5jqkunakNh6LFLmFmRKyDavn5ggjOnDnzunfbCD9e9sCliXfcQ9zFfp5HGiXslMRtZ2ooBpQntJ2s8EYN2dW+uJ9bODtwt8ZACZjjH8HPHYFzD+4bt0Hj+Oo2GejTHiarqc9j/5mPzxiPVVxNNVRPNjfQWR/bHjcva4++dBL2UP+E6u7kWvId49PV7RY/X5nyErjBbUMzaEgbzp2fPz4Xqm0eduQBR9NQ6wlww/H/mNjM0RBxGxAGILB37OViSLNvbxiG1JK2zLyMd/hEj19Bn5uIjIVdVCK0D+TlTVAZW/1ETGbkHsRUSk9Pn7sFKxewMiIiKRsXDXqe8a5apn15TI2C2VY+6rRVW1hUvV1z1Udawcb7bTOleFQk/VeOFt1jdzI2PniO3DPoPqZwMiJa3A3rQiPstEG7sFUdW0ovLgUqWqDyulqg++GdXG/LIYCwtfzeQNqrX3VV/luBgLb0JksBdQOGQIhTMC5Arb8m3aRMZurYMafIZWrfMGn7n7z5hfFjsTK4XC+fySDv0xX+VEG/uoyrGBSn2WAaBwqcZoeen+0qCqLtXTvTr67a2Vo78vi0lV7N604usehv53ZCyM0BBi6Hy3fedn7JL5/m7kdFblcDBQvfGkujYDDgIUb020wls57UeqMpirMyh7Exm7zFjPW/8CUKo3+V+ZRsZuQ5w6377bvfX1Y7GP77RuRUw631LSyvCesARifpmN+P8OERERERER8C9M3/vIdU6jlwAAAABJRU5ErkJggg==';
+
+/* ▶ CONFIG 4 — capture tuning. */
+const CFG = {
+  autoDelay: 2000,        // ms countdown once the frame settles
+  settleMs: 350,          // how long the frame must be still before arming
+  holdMs: 2000,           // pause after the back image before review
+  stillThreshold: 5.5,    // lower = stricter stillness
+  motionThreshold: 13,    // re-arm trigger (card flipped / swapped)
+  maxEdge: 2000,          // longest side of a saved image, px
+  quality: 0.92,
+  pad: 0.04,              // safety margin outside the guide
+  guide: 0.70             // one frame for raw and slabbed alike
+};
+
+/* ---------- tiny helpers ---------- */
+const $ = s => document.querySelector(s);
+const S = {};
+['splash','signin','start','qr','count','capture','hold','review','complete','history']
+  .forEach(k => S[k] = $('#s-'+k));
+let toastTimer;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('on'), 2200);
+}
+function show(name){
+  Object.values(S).forEach(el => el.classList.remove('on'));
+  S[name].classList.add('on'); state.screen = name;
+  /* the count screen carries the big box block, so the thin bar stays out of its way */
+  /* The box bar would cost the camera ~66px, so on the capture screen the box number
+     rides in the HUD pill instead. The thin progress bar stays on both. */
+  $('#topbar').classList.toggle('on', ['hold','review','complete'].includes(name));
+  $('#bar').classList.toggle('on', ['capture','hold','review','complete'].includes(name));
+  $('#appbar').classList.toggle('on', !['splash','signin'].includes(name));
+  $('#homeBtn').style.visibility = name === 'start' ? 'hidden' : 'visible';
+  $('#demoBadge').classList.toggle('on', state.demo);
+}
+
+/* ---------- state ---------- */
+const state = {
+  screen:'splash', box:null, target:0, cards:[], seq:0,
+  side:'front', pending:{front:null,back:null},
+  retake:null, auto:false, demo:false, countBuf:'', returnTo:'start'
+};
+
+/* ============================================================
+   CAMERA
+   ============================================================ */
+const Cam = {
+  stream:null, el:null, demoCanvas:null, demoT:0,
+  async open(){
+    if(this.stream) return true;
+    try{
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1440} },
+        audio:false
+      });
+      const v = document.createElement('video');
+      v.playsInline = true; v.muted = true; v.autoplay = true;
+      v.srcObject = this.stream; await v.play().catch(()=>{});
+      this.el = v; state.demo = false; this.autoFocus(); return true;
+    }catch(e){
+      state.demo = true; this.el = this.makeDemo(); return false;
+    }
+  },
+  /* Close-range capture is exactly where phones hunt for focus, so ask for continuous
+     autofocus when the device exposes it. Silently ignored where it isn't supported. */
+  async autoFocus(){
+    const t = this.stream?.getVideoTracks?.()[0];
+    if(!t?.getCapabilities) return;
+    try{
+      const caps = t.getCapabilities();
+      if(caps.focusMode?.includes('continuous'))
+        await t.applyConstraints({ advanced:[{ focusMode:'continuous' }] });
+    }catch(e){}
+  },
+  /* Tap the preview to focus there. The feed is rotated 180 for display, so the point has
+     to be flipped back into sensor space before it's sent to the camera. */
+  async focusAt(nx, ny){
+    const t = this.stream?.getVideoTracks?.()[0];
+    if(!t?.getCapabilities) return false;
+    try{
+      const caps = t.getCapabilities();
+      if(!caps.pointsOfInterest) return false;
+      await t.applyConstraints({ advanced:[
+        { pointsOfInterest:[{ x: 1-nx, y: 1-ny }] },
+        ...(caps.focusMode?.includes('single-shot') ? [{ focusMode:'single-shot' }] : [])
+      ]});
+      return true;
+    }catch(e){ return false; }
+  },
+  makeDemo(){
+    const c = document.createElement('canvas');
+    c.width = 1280; c.height = 720; c.className = 'live';
+    this.demoCanvas = c;
+    this.labelImg = new Image(); this.labelImg.src = LABEL_IMG;
+    this.labelImg.onload = ()=>this.paintDemo();
+    this.paintDemo(); return c;
+  },
+  /* The demo feed simulates the real rig: content is drawn as the INVERTED phone
+     would see it, then the same CSS flip and the same grab() rotation correct it.
+     scene 'box' on the scan screen, scene 'card' on the capture screens. */
+  paintDemo(){
+    const c = this.demoCanvas; if(!c) return;
+    const x = c.getContext('2d'), W = c.width, H = c.height;
+    const scene = state.screen === 'qr' ? 'box' : 'card';
+    x.fillStyle = '#0E1211'; x.fillRect(0,0,W,H);
+    for(let i=0;i<140;i++){
+      x.fillStyle = `rgba(255,255,255,${Math.random()*0.02})`;
+      x.fillRect(Math.random()*W, Math.random()*H, 2, 2);
+    }
+    if(scene === 'box'){
+      x.save(); x.translate(W/2, H/2); x.rotate(Math.PI);   // inverted mount
+      this.drawBox(x); x.restore();
+    } else this.drawCard(x);                                 // blank: no orientation to fix
+    this.demoT = (this.demoT + 5) % H;
+    x.fillStyle = 'rgba(57,255,20,.05)'; x.fillRect(0, this.demoT, H*0.06, 4);
+  },
+  /* a corrugated box with the real printed label lying face up under the lens */
+  drawBox(x){
+    const bw = 700, bh = 470;
+    x.shadowColor = 'rgba(0,0,0,.7)'; x.shadowBlur = 40; x.shadowOffsetY = 14;
+    const g = x.createLinearGradient(-bw/2,-bh/2,bw/2,bh/2);
+    g.addColorStop(0,'#8A6B45'); g.addColorStop(.55,'#A17F52'); g.addColorStop(1,'#6E5436');
+    x.fillStyle = g; x.fillRect(-bw/2,-bh/2,bw,bh); x.shadowBlur = 0;
+    x.strokeStyle = 'rgba(255,255,255,.14)'; x.lineWidth = 2;
+    x.strokeRect(-bw/2+5,-bh/2+5,bw-10,bh-10);
+    // cards stacked either side of the label
+    for(const cx of [-322,-224,148,246]){
+      x.fillStyle = 'rgba(18,24,42,.9)';  x.fillRect(cx, -62, 88, 124);
+      x.fillStyle = 'rgba(255,255,255,.07)'; x.fillRect(cx+4, -58, 80, 116);
+    }
+    // the label, at 1:1 — no resampling, so the code decodes exactly as printed
+    const im = this.labelImg;
+    if(im?.complete && im.naturalWidth){
+      const lw = im.naturalWidth, lh = im.naturalHeight;
+      x.shadowColor = 'rgba(0,0,0,.5)'; x.shadowBlur = 14; x.shadowOffsetY = 4;
+      x.fillStyle = '#FFF'; x.fillRect(-lw/2 - 3, -lh/2 - 3, lw + 6, lh + 6);
+      x.shadowBlur = 0;
+      x.imageSmoothingEnabled = false;
+      x.drawImage(im, -lw/2, -lh/2, lw, lh);
+      x.imageSmoothingEnabled = true;
+    }
+  },
+  /* A plain light grey area where the card goes — nothing printed on it, so there is
+     nothing to read and nothing that looks like real data. Positioned from the guide so it
+     lands inside the green frame. Coordinates are converted to the raw feed's orientation,
+     since the preview is rotated 180 on its way to the screen. */
+  drawCard(x){
+    const c = this.demoCanvas, CW = c.width, CH = c.height;
+    let X, Y, W, H;
+    const r = guideCrop();
+    if(r && r.cw > 24 && r.chh > 24){
+      const k = 0.045;                                   // let the brackets stay visible
+      X = (CW - r.sx - r.cw) + r.cw*k;
+      Y = (CH - r.sy - r.chh) + r.chh*k;
+      W = r.cw * (1 - k*2); H = r.chh * (1 - k*2);
+    }else{
+      H = CH*0.66; W = H*CFG.guide; X = (CW-W)/2; Y = (CH-H)/2;
+    }
+    const rad = Math.min(14, W*0.05);
+    const rr = ()=>{ x.beginPath();
+      x.moveTo(X+rad,Y); x.arcTo(X+W,Y,X+W,Y+H,rad); x.arcTo(X+W,Y+H,X,Y+H,rad);
+      x.arcTo(X,Y+H,X,Y,rad); x.arcTo(X,Y,X+W,Y,rad); x.closePath(); };
+    x.shadowColor='rgba(0,0,0,.6)'; x.shadowBlur=26; x.shadowOffsetY=8;
+    const g = x.createLinearGradient(X,Y,X+W,Y+H);
+    g.addColorStop(0,'#DFE2DF'); g.addColorStop(1,'#C6CAC6');
+    rr(); x.fillStyle=g; x.fill(); x.shadowBlur=0;
+    x.strokeStyle='rgba(0,0,0,.16)'; x.lineWidth=2; rr(); x.stroke();
+  },
+  /* keeps the simulated feed moving so the decoder has frames to work with */
+  startDemoLoop(){
+    clearInterval(this.demoLoop);
+    this.demoLoop = setInterval(()=>{
+      if(!state.demo) return clearInterval(this.demoLoop);
+      if(['qr','capture'].includes(state.screen)) this.paintDemo();
+    }, 90);
+  },
+  mount(stageEl){
+    if(!this.el) return;
+    if(this.el.parentElement !== stageEl) stageEl.insertBefore(this.el, stageEl.firstChild);
+  }
+};
+
+/* frame grab → always de-rotated to upright, then cropped to the guide */
+function grab(cropRect){
+  const src = Cam.el;
+  const sw = src.videoWidth || src.width, sh = src.videoHeight || src.height;
+  if(!sw || !sh) return null;
+  const up = document.createElement('canvas');
+  up.width = sw; up.height = sh;
+  const ux = up.getContext('2d');
+  ux.translate(sw, sh); ux.rotate(Math.PI);       // undo the inverted mount
+  ux.drawImage(src, 0, 0, sw, sh);
+  let sx=0, sy=0, cw=sw, chh=sh;
+  if(cropRect){ ({sx,sy,cw,chh} = cropRect); }
+  const scale = Math.min(1, CFG.maxEdge / Math.max(cw, chh));
+  const out = document.createElement('canvas');
+  out.width = Math.round(cw*scale); out.height = Math.round(chh*scale);
+  out.getContext('2d').drawImage(up, sx, sy, cw, chh, 0, 0, out.width, out.height);
+  return out.toDataURL('image/jpeg', CFG.quality);
+}
+
+/* map the on-screen guide box back to source pixels (object-fit: cover) */
+function guideCrop(){
+  const stage = $('#stageCap'), g = $('#guide');
+  const src = Cam.el;
+  const vw = src.videoWidth || src.width, vh = src.videoHeight || src.height;
+  if(!vw) return null;
+  const sr = stage.getBoundingClientRect(), gr = g.getBoundingClientRect();
+  const s = Math.max(sr.width/vw, sr.height/vh);
+  const ox = (sr.width - vw*s)/2, oy = (sr.height - vh*s)/2;
+  const px = gr.width*CFG.pad, py = gr.height*CFG.pad;
+  let sx = (gr.left - sr.left - ox - px)/s;
+  let sy = (gr.top  - sr.top  - oy - py)/s;
+  let cw = (gr.width + px*2)/s, chh = (gr.height + py*2)/s;
+  sx = Math.max(0, sx); sy = Math.max(0, sy);
+  cw = Math.min(cw, vw - sx); chh = Math.min(chh, vh - sy);
+  return { sx, sy, cw, chh };
+}
+
+/* ============================================================
+   MOTION — hands-free trigger: settle → arm → countdown → shoot
+   ============================================================ */
+const Motion = {
+  c: Object.assign(document.createElement('canvas'), {width:32, height:18}),
+  prev:null,
+  score(){
+    const src = Cam.el; if(!src) return 99;
+    const w = src.videoWidth || src.width; if(!w) return 99;
+    const x = this.c.getContext('2d', {willReadFrequently:true});
+    x.drawImage(src, 0, 0, 32, 18);
+    const d = x.getImageData(0,0,32,18).data;
+    const cur = new Uint8Array(576);
+    for(let i=0,j=0;i<d.length;i+=4,j++) cur[j] = (d[i]*3 + d[i+1]*6 + d[i+2])/10;
+    if(!this.prev){ this.prev = cur; return 99; }
+    let sum = 0; for(let i=0;i<cur.length;i++) sum += Math.abs(cur[i]-this.prev[i]);
+    this.prev = cur; return sum/cur.length;
+  },
+  reset(){ this.prev = null; }
+};
+
+/* ============================================================
+   CAPTURE LOOP
+   ============================================================ */
+const Shot = {
+  loop:null, stillSince:0, needsMotion:true, arming:false, t0:0, raf:null,
+  begin(){
+    this.needsMotion = true; this.arming = false; this.stillSince = 0;
+    Motion.reset(); this.disarm();
+    clearInterval(this.loop);
+    this.loop = setInterval(()=>this.tick(), 100);
+    if(state.demo) this.demoTimer = setTimeout(()=>{
+      if(state.auto && state.screen==='capture') this.arm();
+    }, 900);
+  },
+  end(){ clearInterval(this.loop); clearTimeout(this.demoTimer); this.disarm(); },
+  tick(){
+    if(state.screen !== 'capture') return;
+    if(state.demo){ Cam.paintDemo(); return; }
+    const m = Motion.score();
+    if(!state.auto) return;
+    if(this.needsMotion){ if(m > CFG.motionThreshold) this.needsMotion = false; return; }
+    if(this.arming) return;
+    if(m < CFG.stillThreshold){
+      if(!this.stillSince) this.stillSince = Date.now();
+      else if(Date.now() - this.stillSince > CFG.settleMs) this.arm();
+    } else this.stillSince = 0;
+  },
+  arm(){
+    if(this.arming) return;
+    this.arming = true; this.t0 = Date.now();
+    $('#guide').classList.add('armed'); $('#shutter').classList.add('armed');
+    $('#capLabel').classList.add('arm');
+    const step = ()=>{
+      if(!this.arming) return;
+      const p = Math.min(1, (Date.now()-this.t0)/CFG.autoDelay);
+      $('#ring').style.strokeDashoffset = 219.9*(1-p);
+      if(p >= 1) return this.fire();
+      this.raf = requestAnimationFrame(step);
+    };
+    step();
+  },
+  disarm(){
+    this.arming = false; cancelAnimationFrame(this.raf);
+    $('#ring').style.strokeDashoffset = 219.9;
+    $('#guide').classList.remove('armed'); $('#shutter').classList.remove('armed');
+    $('#capLabel').classList.remove('arm');
+    this.stillSince = 0;
+  },
+  fire(){
+    this.disarm();
+    const img = grab(guideCrop());
+    if(!img) return toast('Frame not ready');
+    onCaptured(img);
+  }
+};
+
+/* ============================================================
+   FLOW
+   ============================================================ */
+/* The guide is laid out from explicit reserves rather than centred, so the HUD above it and
+   the label below it can never sit over the card. Change a reserve if either grows. */
+const RESERVE = { tall:{ top:96, bottom:110 }, short:{ top:84, bottom:96 } };
+function setGuideAspect(){
+  const stage = $('#stageCap'), g = $('#guide');
+  const r = stage.getBoundingClientRect();
+  if(!r.height) return;
+  // reserves are fixed, not measured, so the crop region is identical on both sides
+  // of a card even though the front thumbnail only shows for the back shot
+  const R = r.height < 700 ? RESERVE.short : RESERVE.tall;
+  let h = Math.max(r.height*0.40, r.height - R.top - R.bottom);
+  let w = h * CFG.guide;
+  if(w > r.width*0.88){ w = r.width*0.88; h = w/CFG.guide; }
+  const gx = (r.width - w)/2;
+  const gy = Math.max(0, R.top + (r.height - R.top - R.bottom - h)/2);
+  Object.assign(g.style, { left:gx+'px', top:gy+'px', width:w+'px', height:h+'px' });
+  Object.assign($('#mT').style,{left:0,top:0,width:'100%',height:gy+'px'});
+  Object.assign($('#mB').style,{left:0,top:(gy+h)+'px',width:'100%',
+    height:Math.max(0, r.height-gy-h)+'px'});
+  Object.assign($('#mL').style,{left:0,top:gy+'px',width:gx+'px',height:h+'px'});
+  Object.assign($('#mR').style,{left:(gx+w)+'px',top:gy+'px',
+    width:Math.max(0, r.width-gx-w)+'px',height:h+'px'});
+}
+
+function paintTop(){
+  if(!state.box) return;
+  $('#tbNum').textContent = state.box.number;
+  $('#tbName').textContent = state.box.name;
+  $('#tbCount').textContent = `${state.cards.length}/${state.target||'—'}`;
+  $('#barfill').style.width = state.target
+    ? (state.cards.length/state.target*100)+'%' : '0%';
+  if(state.box.qrImage) $('#qrthumb').src = state.box.qrImage;
+  paintBoxId();
+}
+
+/* box number + name + code photo, mirrored on the count and complete screens */
+function paintBoxId(){
+  if(!state.box) return;
+  document.querySelectorAll('.boxid').forEach(el=>{
+    el.querySelector('.bnum').textContent = state.box.number;
+    el.querySelector('.bname').textContent = state.box.name;
+    const raw = el.querySelector('.braw');
+    if(state.box.url){
+      raw.innerHTML = '';
+      const a = document.createElement('a');
+      a.href = state.box.url; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = 'OPEN IN ADMIN ↗'; a.className = 'adminlink';
+      raw.appendChild(a);
+    } else raw.textContent = 'CODE · ' + state.box.raw;
+    if(state.box.qrImage) el.querySelector('.bpic').src = state.box.qrImage;
+  });
+}
+
+function toCapture(side){
+  state.side = side;
+  show('capture'); Cam.mount($('#stageCap'));
+  setGuideAspect();
+  $('#capCard').textContent =
+    `${state.box.number} · CARD ${String(state.seq+1).padStart(2,'0')}/${state.target}`;
+  $('#capLabel').textContent = side === 'front' ? 'Front Scan' : 'Back Scan';
+  $('#capLabel').classList.remove('arm');
+  const t = $('#capThumb');
+  const showFront = side === 'back' && state.pending.front;
+  t.classList.toggle('on', !!showFront);
+  t.innerHTML = showFront ? `<img src="${state.pending.front}" alt="Captured front">` : '';
+  paintTop(); Shot.begin();
+}
+
+function onCaptured(img){
+  state.pending[state.side] = img;
+  Sound.click(); navigator.vibrate?.(28);
+  if(state.retake){                       // came from review — go straight back
+    state.retake = null; Shot.end(); return toReview();
+  }
+  if(state.side === 'front'){
+    Shot.needsMotion = true; Shot.stillSince = 0;
+    toCapture('back');
+  }else{
+    Shot.end(); hold(img);
+  }
+}
+
+function hold(img){
+  show('hold');
+  $('#holdImg').src = img;
+  const f = $('#holdFill'); f.style.animation = 'none'; void f.offsetWidth;
+  f.style.animation = `fill ${CFG.holdMs}ms linear forwards`;
+  setTimeout(toReview, CFG.holdMs);
+}
+
+/* The guide aspect changes between slab and raw, and the crop pads a little, so the
+   captured image is never exactly the frame's ratio. Take the ratio from the image itself:
+   the border then hugs the card with no empty bordered space around it. */
+function fitFrame(img, frame, src){
+  frame.classList.toggle('empty', !src);
+  img.style.display = src ? 'block' : 'none';
+  if(!src){ img.removeAttribute('src'); return; }
+  img.src = src;
+  const set = ()=>{
+    if(img.naturalWidth){
+      frame.style.aspectRatio = `${img.naturalWidth}/${img.naturalHeight}`;
+      frame.classList.remove('empty');
+    }else frame.classList.add('empty');
+  };
+  img.onerror = ()=>{ frame.classList.add('empty'); img.style.display = 'none'; };
+  img.complete ? set() : img.addEventListener('load', set, { once:true });
+}
+
+function toReview(){
+  show('review');
+  $('#revEye').textContent =
+    `CARD ${String(state.seq+1).padStart(2,'0')} OF ${String(state.target).padStart(2,'0')}`;
+  fitFrame($('#revFimg'), $('#revF'), state.pending.front);
+  fitFrame($('#revBimg'), $('#revB'), state.pending.back);
+  $('#revOk').disabled = !(state.pending.front && state.pending.back);
+  paintTop();
+}
+
+async function confirmCard(){
+  const id = 'C' + Date.now().toString(36).toUpperCase().slice(-6);
+  const seq = state.seq + 1;
+  const rec = { id, seq, at: new Date().toISOString(),
+                front: state.pending.front, back: state.pending.back, uploads: [] };
+  for(const side of ['front','back']){
+    const key = Storage.key(state.box.number, seq, side, id);
+    rec.uploads.push(await Storage.put(key, rec[side]));
+  }
+  state.cards.push(rec);
+  Sound.done();
+  state.pending = { front:null, back:null };
+  state.seq++;
+  paintTop();
+  if(state.seq >= state.target) return toComplete();
+  toCapture('front');
+}
+
+function toComplete(){
+  Shot.end(); show('complete');
+  if(state.box.qrImage) Storage.put(`boxes/${state.box.number}/_box.jpg`, state.box.qrImage);
+  $('#cmpTitle').textContent = state.cards.length === state.target
+    ? 'Box ready' : `Box ended early · ${state.cards.length} of ${state.target}`;
+  const g = $('#cmpGrid'); g.innerHTML = '';
+  state.cards.forEach(c=>{
+    const d = document.createElement('div'); d.className = 'cell';
+    d.innerHTML = `<img src="${c.front}" alt="Card ${c.seq} front"><span>${String(c.seq).padStart(2,'0')}</span>`;
+    g.appendChild(d);
+  });
+  const n = state.cards.length;
+  const bytes = state.cards.reduce((t,c)=>t + c.front.length*0.75 + c.back.length*0.75, 0);
+  $('#cmpEye').textContent = n === state.target ? 'ALL CARDS CAPTURED' : 'BOX ENDED EARLY';
+  $('#cmpCards').textContent = n;
+  $('#cmpCardsL').textContent = n === 1 ? 'CARD' : 'CARDS';
+  $('#cmpImgs').textContent = n*2;
+  $('#cmpImgsL').textContent = n*2 === 1 ? 'IMAGE' : 'IMAGES';
+  const mb = bytes/1048576;
+  $('#cmpMb').textContent = mb >= 1 ? mb.toFixed(1) : Math.round(bytes/1024);
+  $('#cmpMbL').textContent = mb >= 1 ? 'MB QUEUED' : 'KB QUEUED';
+  paintTop();
+}
+
+function resetSession(){
+  Shot.end();
+  if(state.box && state.cards.length){
+    const entry = { box: state.box.number, name: state.box.name, cards: state.cards.length,
+                    at: Date.now(), by: Session.user || '', thumb: state.box.thumb || '',
+                    partial: state.cards.length < state.target };
+    History.add(entry);
+  }
+  state.box = null; state.target = 0; state.cards = []; state.seq = 0;
+  state.pending = { front:null, back:null }; state.retake = null;
+  setCount(0);
+  paintLast(); show('start');
+}
+
+/* The confirmation image should be the code itself, not a wide shot of the box.
+   Both decoders report where they found it, so crop tight to that — barely wider than the
+   code, and tall enough upward to take in the printed id above it. Padding is tuned to the
+   Arena label's proportions so the crop lands on the white label and never on the box behind
+   it; it clamps to the frame, so an unfamiliar label degrades to a slightly wider shot. */
+function codeCrop(b){
+  if(!b || !b.width) return null;
+  const src = Cam.el;
+  const W = src.videoWidth || src.width, H = src.videoHeight || src.height;
+  // grab() un-rotates the inverted feed, so mirror the box into upright coordinates
+  const ux = W - (b.x + b.width), uy = H - (b.y + b.height);
+  const padX = b.width * 0.05, padT = b.height * 0.55, padB = b.height * 0.14;
+  const sx = Math.max(0, ux - padX), sy = Math.max(0, uy - padT);
+  return {
+    sx, sy,
+    cw:  Math.min(W - sx, b.width  + padX * 2),
+    chh: Math.min(H - sy, b.height + padT + padB)
+  };
+}
+
+/* ============================================================
+   QR
+   ============================================================ */
+const QR = { detector:null, loop:null, jsqr:null, busy:false,
+  async prep(){
+    if('BarcodeDetector' in window){
+      try{ this.detector = new BarcodeDetector({formats:['qr_code','code_128','code_39','ean_13']}); }catch(e){}
+    }
+    if(!this.detector && !this.jsqr){
+      await new Promise(res=>{
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
+        s.onload = s.onerror = res; document.head.appendChild(s);
+      });
+      this.jsqr = window.jsQR || null;
+    }
+  },
+  async start(){
+    await this.prep();
+    const ok = this.detector || this.jsqr;
+    $('#qrStatus').textContent = ok ? '● SCANNING FOR BOX CODE' : '● ENTER CODE MANUALLY';
+    $('#qrStatus').className = 'pill ' + (ok ? 'live' : 'warn');
+    if(!ok) return;
+    clearInterval(this.loop);
+    this.loop = setInterval(()=>this.tick(), 140);
+  },
+  stop(){ clearInterval(this.loop); },
+  async tick(){
+    if(this.busy || state.screen !== 'qr') return;
+    this.busy = true;
+    try{
+      const src = Cam.el, w = src.videoWidth||src.width, h = src.videoHeight||src.height;
+      if(!w) return;
+      let value = null, at = null;
+      if(this.detector){
+        const r = await this.detector.detect(src);
+        if(r.length){ value = r[0].rawValue; at = r[0].boundingBox; }
+      }else{
+        const c = document.createElement('canvas');
+        const sc = Math.min(1, 960/Math.max(w,h));
+        c.width = w*sc; c.height = h*sc;
+        const x = c.getContext('2d', {willReadFrequently:true});
+        x.drawImage(src,0,0,c.width,c.height);
+        const r = this.jsqr(x.getImageData(0,0,c.width,c.height).data, c.width, c.height);
+        if(r){
+          value = r.data;
+          const p = Object.values(r.location);
+          const xs = p.map(q=>q.x), ys = p.map(q=>q.y);
+          const x0 = Math.min(...xs), y0 = Math.min(...ys);
+          at = { x:x0/sc, y:y0/sc,
+                 width:(Math.max(...xs)-x0)/sc, height:(Math.max(...ys)-y0)/sc };
+        }
+      }
+      if(value){ this.stop(); acceptCode(value, grab(codeCrop(at))); }
+    }catch(e){}
+    finally{ this.busy = false; }
+  }
+};
+
+/* Production labels carry an admin URL: admin.arenaclub.com/b/8170
+   The box id is the last path segment. Scheme, trailing slash and query are all tolerated.
+   Bare codes, pipe form and JSON still parse, so older labels keep working. */
+function parseCode(raw){
+  const t = String(raw).trim();
+  try{ const j = JSON.parse(t); if(j.box||j.number) return {number:j.box||j.number, name:j.name}; }catch(e){}
+  if(t.includes('|')){ const [n,...r] = t.split('|'); return {number:n.trim(), name:r.join('|').trim()}; }
+  const m = t.match(/^(?:https?:\/\/)?[\w.-]+\/(?:[\w-]+\/)*([\w-]+)\/?(?:[?#].*)?$/i);
+  if(m) return { number:m[1], name:null, url: t.startsWith('http') ? t : 'https://'+t };
+  return { number:t, name:null };
+}
+
+async function acceptCode(raw, snapshot){
+  const p = parseCode(raw);
+  const info = await lookupBox(p.number);
+  state.box = { number: info.number, name: p.name || info.name, raw,
+                url: p.url || '', qrImage: snapshot || '' };
+  if(!snapshot){                       // demo / manual entry — draw a stand-in tile
+    const c = document.createElement('canvas'); c.width = c.height = 84;
+    const x = c.getContext('2d');
+    x.fillStyle = '#0B0D0C'; x.fillRect(0,0,84,84);
+    x.fillStyle = '#39FF14'; x.font = '600 9px JetBrains Mono, monospace';
+    x.textAlign = 'center'; x.fillText('NO', 42, 38); x.fillText('IMAGE', 42, 50);
+    snapshot = c.toDataURL();
+    state.box.qrImage = snapshot;
+  }
+  $('#qrthumb').src = snapshot;
+  makeThumb(snapshot).then(t=>{ if(state.box) state.box.thumb = t; });
+  Sound.click(); navigator.vibrate?.([20,40,20]);
+  show('count'); paintTop();
+  toast('Box ' + state.box.number + ' locked in');
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+if(LOGO_SRC){
+  [['#logo','#wordmark'], ['#logo2','#wordmark2'], ['#logo3','#wordmark3'],
+   ['#logo4','#wordmark4']].forEach(([img, mark])=>{
+    $(img).src = LOGO_SRC; $(img).style.display = 'block';
+    $(mark).style.display = 'none';
+  });
+}
+
+function paintLast(){
+  const l = History.all()[0];
+  $('#stLast').textContent = l
+    ? `${l.box} · ${l.cards} card${l.cards === 1 ? '' : 's'}` : 'none';
+}
+
+// splash → start
+try{ localStorage.removeItem('arenascan.last'); }catch(e){}   // legacy key
+(function boot(){
+  const steps = ['INITIALISING','CAMERA','STORAGE','READY'];
+  let i = 0;
+  const iv = setInterval(()=>{ $('#bootline').textContent = steps[++i] || 'READY';
+    if(i >= steps.length-1) clearInterval(iv); }, SPLASH_MS/(steps.length+1));
+  setTimeout(()=>{
+    // Always ask who is scanning. A station is shared, and silently restoring the last
+    // person would stamp their name on someone else's boxes.
+    Session.load(); prefillSignIn(); show('signin');
+    paintLast(); Remote.load(); Sound.load();
+    $('#stCam').textContent = navigator.mediaDevices ? 'ready on request' : 'unavailable';
+    $('#stDest').textContent = Storage.mode === 'queue'
+      ? 'local queue · not linked' : 'presigned upload';
+  }, SPLASH_MS);
+})();
+
+$('#btnStart').onclick = async ()=>{
+  show('qr');
+  const live = await Cam.open();
+  Cam.mount($('#stageQR'));
+  if(!live){ Cam.startDemoLoop(); toast('No camera — simulated box in view'); }
+  $('#stCam').textContent = live ? 'live' : 'demo mode';
+  QR.start();
+};
+$('#qrCancel').onclick = ()=>{ QR.stop(); show('start'); };
+$('#qrDemo').onclick = ()=>{ QR.stop(); acceptCode('admin.arenaclub.com/b/8170', grab()); };
+$('#qrManual').onclick = ()=>{
+  const v = prompt('Box code'); if(!v) return;
+  QR.stop(); acceptCode(v, grab());
+};
+
+// count screen
+function setCount(n){
+  state.countBuf = n ? String(n) : '';
+  $('#cntVal').textContent = n || 0;
+  $('#cntGo').disabled = !(n > 0);
+  document.querySelectorAll('.chips button').forEach(b=>
+    b.classList.toggle('on', +b.dataset.q === n));
+}
+function pushDigit(k){
+  if(k === 'clear') return setCount(0);
+  if(state.countBuf.length >= 3) return;
+  setCount(parseInt(state.countBuf + k, 10));
+}
+document.querySelectorAll('.numpad button').forEach(b=> b.onclick = ()=>pushDigit(b.dataset.k));
+document.querySelectorAll('.chips button').forEach(b=> b.onclick = ()=>setCount(+b.dataset.q));
+$('#cntBack').onclick = ()=>{ show('qr'); QR.start(); };
+$('#cntGo').onclick = ()=>{
+  state.target = parseInt(state.countBuf, 10);
+  state.seq = 0; state.cards = [];
+  toast(`${state.target} cards · front then back`);
+  toCapture('front');
+};
+
+// capture screen
+$('#focusTap').onclick = async e=>{
+  const r = $('#stageCap').getBoundingClientRect();
+  const nx = (e.clientX - r.left)/r.width, ny = (e.clientY - r.top)/r.height;
+  const ring = $('#focusRing');
+  ring.style.left = (e.clientX - r.left)+'px'; ring.style.top = (e.clientY - r.top)+'px';
+  ring.classList.remove('go'); void ring.offsetWidth; ring.classList.add('go');
+  const ok = await Cam.focusAt(nx, ny);
+  if(!ok && !state.demo) toast('This camera does not expose focus control');
+};
+$('#btnShoot').onclick = ()=>Shot.fire();
+$('#autoOn').onclick = ()=>{ state.auto = true;
+  $('#autoOn').classList.add('on'); $('#autoOff').classList.remove('on');
+  Shot.needsMotion = false; Shot.stillSince = 0; };
+$('#autoOff').onclick = ()=>{ state.auto = false; Shot.disarm();
+  $('#autoOff').classList.add('on'); $('#autoOn').classList.remove('on'); };
+$('#capAbort').onclick = ()=>{
+  if(!confirm('End this box early? Captured cards are kept.')) return;
+  state.cards.length ? toComplete() : resetSession();
+};
+
+// review screen
+function enlarge(src, label){
+  if(!src) return toast('No image captured for the ' + label);
+  $('#lightImg').src = src; $('#lightbox').classList.add('on');
+}
+$('#revF').onclick = ()=>enlarge(state.pending.front, 'front');
+$('#revB').onclick = ()=>enlarge(state.pending.back,  'back');
+document.querySelectorAll('.caprow .retake').forEach(b=> b.onclick = e=>{
+  e.stopPropagation();
+  state.retake = b.dataset.side; toCapture(b.dataset.side);
+});
+$('#revOk').onclick = ()=>confirmCard();
+$('#revDrop').onclick = ()=>{
+  if(!confirm('Discard both images for this card?')) return;
+  state.pending = {front:null,back:null}; toCapture('front');
+};
+
+// complete screen
+$('#cmpDone').onclick = ()=>{ toast('Box '+state.box.number+' complete'); resetSession(); };
+$('#cmpJson').onclick = ()=>{
+  const manifest = {
+    box: state.box.number, name: state.box.name, code: state.box.raw,
+    scannedBy: Session.user || null,
+    boxPhoto: `boxes/${state.box.number}/_box.jpg`,
+    target: state.target, captured: state.cards.length,
+    closedAt: new Date().toISOString(),
+    cards: state.cards.map(c=>({ id:c.id, seq:c.seq, at:c.at,
+      images: c.uploads.map(u=>u.key) }))
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(manifest,null,2)],{type:'application/json'}));
+  a.download = `${state.box.number}-manifest.json`; a.click();
+  toast('Manifest downloaded');
+};
+
+/* Logo is the way home. A part-scanned box is real work, so confirm before dropping it. */
+function goHome(){
+  const pending = state.pending.front || state.pending.back;
+  const atRisk  = state.cards.length + (pending ? 1 : 0);
+  if(state.box && atRisk && state.screen !== 'complete'){
+    const msg = `Leave box ${state.box.number}?\n\n${atRisk} card`
+      + (atRisk === 1 ? '' : 's') + ' captured in this box will be discarded.';
+    if(!confirm(msg)) return;
+  }
+  QR.stop(); Shot.end(); resetSession();
+}
+$('#homeBtn').onclick = goHome;
+
+// box identity block: enlarge the photo, or go rescan
+document.querySelectorAll('.boxid .bpic').forEach(img=> img.onclick = ()=>{
+  if(!state.box?.qrImage) return toast('No photo captured for this box');
+  $('#lightImg').src = state.box.qrImage; $('#lightbox').classList.add('on');
+});
+document.querySelectorAll('.boxid .brescan').forEach(b=> b.onclick = ()=>{
+  show('qr'); Cam.mount($('#stageQR')); QR.start();
+});
+
+// box code lightbox
+$('#qrthumb').onclick = ()=>{
+  if(!state.box?.qrImage) return toast('No code image for this box');
+  $('#lightImg').src = state.box.qrImage; $('#lightbox').classList.add('on');
+};
+$('#lightbox').onclick = ()=>$('#lightbox').classList.remove('on');
+
+/* ============================================================
+   SOUND
+
+   A soft shutter, synthesised rather than loaded, so the app stays a single file with
+   nothing to fetch. Two short filtered-noise bursts read as a mirror going up and coming
+   back down; a quiet two-note blip marks a card banked, so front, back and done are
+   distinguishable without looking at the screen.
+   ============================================================ */
+const Sound = {
+  ctx: null, on: true,
+
+  load(){
+    try{ this.on = localStorage.getItem('scanapp.sound') !== 'off'; }catch(e){}
+    this.paint();
+  },
+  paint(){ $('#menuSound').textContent = this.on ? 'Sound on' : 'Sound off'; },
+  toggle(){
+    this.on = !this.on;
+    try{ localStorage.setItem('scanapp.sound', this.on ? 'on' : 'off'); }catch(e){}
+    this.paint();
+    if(this.on) this.click();
+  },
+  /* iOS will not start audio outside a user gesture, so this runs on the first tap or key */
+  unlock(){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    try{
+      if(!this.ctx) this.ctx = new AC();
+      if(this.ctx.state === 'suspended') this.ctx.resume();
+    }catch(e){}
+  },
+  burst(at, dur, freq, q, gain){
+    const c = this.ctx;
+    const n = Math.max(1, Math.floor(c.sampleRate * dur));
+    const buf = c.createBuffer(1, n, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i = 0; i < n; i++) d[i] = Math.random()*2 - 1;
+    const src = c.createBufferSource(); src.buffer = buf;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.value = freq; bp.Q.value = q;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(gain, at + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(bp); bp.connect(g); g.connect(c.destination);
+    src.start(at); src.stop(at + dur);
+  },
+  tone(at, freq, gain, dur){
+    const c = this.ctx;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(gain, at + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(at); o.stop(at + dur + 0.02);
+  },
+  /* shutter — every image captured, including the box label */
+  click(){
+    if(!this.on) return;
+    this.unlock(); if(!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.burst(t,         0.030, 2600, 1.4, 0.15);
+    this.burst(t + 0.052, 0.042, 1450, 1.1, 0.10);
+  },
+  /* card banked — both sides stored, move on */
+  done(){
+    if(!this.on) return;
+    this.unlock(); if(!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.tone(t,        880, 0.07, 0.13);
+    this.tone(t + 0.10, 1320, 0.06, 0.17);
+  }
+};
+addEventListener('pointerdown', ()=>Sound.unlock(), { once:true });
+addEventListener('keydown',     ()=>Sound.unlock(), { once:true });
+
+/* ============================================================
+   SESSION
+
+   ▶ CONFIG 6 — this is a name badge, not authentication. It records who scanned a box
+   so the history and manifests are attributable. Wire signIn() to real admin SSO before
+   anyone relies on it for access control.
+   ============================================================ */
+const Session = {
+  user: null,        // set only by an explicit sign-in this session
+  remembered: null,  // last name used on this device, for pre-filling the field
+  load(){
+    try{ this.remembered = localStorage.getItem('scanapp.user') || null; }catch(e){}
+    this.paint(); return this.remembered;
+  },
+  signIn(name){
+    this.user = String(name).trim();
+    try{
+      localStorage.setItem('scanapp.user', this.user);
+      const seen = this.recent().filter(u => u.toLowerCase() !== this.user.toLowerCase());
+      localStorage.setItem('scanapp.users', JSON.stringify([this.user, ...seen].slice(0,6)));
+    }catch(e){}
+    this.paint();
+  },
+  signOut(){
+    this.user = null;
+    try{ localStorage.removeItem('scanapp.user'); }catch(e){}
+    this.paint();
+  },
+  recent(){
+    try{ return JSON.parse(localStorage.getItem('scanapp.users') || '[]'); }catch(e){ return []; }
+  },
+  paint(){ $('#menuName').textContent = this.user || 'Not signed in'; }
+};
+
+/* A full label crop is tens of KB; 60 of them would blow the storage quota. Keep a
+   110px JPEG instead — a few KB each, still clearly the right box at a glance. */
+function makeThumb(dataUrl, maxW = 110){
+  return new Promise(res=>{
+    if(!dataUrl) return res('');
+    const im = new Image();
+    im.onload = ()=>{
+      const s = Math.min(1, maxW / im.naturalWidth);
+      const c = document.createElement('canvas');
+      c.width = Math.round(im.naturalWidth*s); c.height = Math.round(im.naturalHeight*s);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      try{ res(c.toDataURL('image/jpeg', 0.7)); }catch(e){ res(''); }
+    };
+    im.onerror = ()=>res('');
+    im.src = dataUrl;
+  });
+}
+
+/* ============================================================
+   HISTORY — boxes finished on this device, newest first
+   ============================================================ */
+const History = {
+  all(){
+    try{ return JSON.parse(localStorage.getItem('scanapp.history') || '[]'); }
+    catch(e){ return []; }
+  },
+  /* Quota-safe: on failure, halve the list and retry, then fall back to dropping the
+     images entirely. Losing old thumbnails is fine; losing the record is not. */
+  add(entry){
+    let rows = [entry, ...this.all()].slice(0, 60);
+    for(let i = 0; i < 4; i++){
+      try{ localStorage.setItem('scanapp.history', JSON.stringify(rows)); return; }
+      catch(e){ rows = rows.slice(0, Math.max(4, Math.floor(rows.length/2))); }
+    }
+    try{
+      localStorage.setItem('scanapp.history',
+        JSON.stringify(rows.map(({thumb, ...r}) => r)));
+    }catch(e){}
+  },
+  /* Local midnights, so "today" means the operator's day, not UTC's.
+     Both days are always shown, empty or not — an empty TODAY is information. */
+  render(){
+    const list = $('#histList');
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterday = midnight - 864e5;
+    const rows  = this.all();
+    const today = rows.filter(r => r.at >= midnight);
+    const prev  = rows.filter(r => r.at >= yesterday && r.at < midnight);
+    const older = rows.length - today.length - prev.length;
+
+    const fmt = t => new Date(t).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+    const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+    const row = r => `
+      <div class="histrow">
+        ${r.thumb ? `<img class="hthumb" src="${r.thumb}" alt="Label for box ${esc(r.box)}">`
+                  : `<div class="hthumb blank">${esc(String(r.box).slice(-2))}</div>`}
+        <div class="hmid">
+          <div class="hnum">${esc(r.box)}</div>
+          <div class="hname">${esc(r.name)}</div>
+          <div class="hsub">${fmt(r.at)}${r.by ? ' · ' + esc(r.by) : ''}${
+            r.partial ? ' · ended early' : ''}</div>
+        </div>
+        <div class="hcount">${r.cards}<small>CARD${r.cards === 1 ? '' : 'S'}</small></div>
+      </div>`;
+
+    const section = (label, items) =>
+      `<div class="histday">${label}<span>${items.length} box${
+        items.length === 1 ? '' : 'es'}</span></div>` +
+      (items.length ? items.map(row).join('')
+                    : '<div class="histnone">Nothing scanned</div>');
+
+    list.innerHTML = section('TODAY', today) + section('YESTERDAY', prev) +
+      (older > 0 ? `<div class="histolder">${older} older box${
+        older === 1 ? '' : 'es'} not shown</div>` : '');
+  }
+};
+
+/* ============================================================
+   REMOTE / BLUETOOTH CLICKER
+
+   A Bluetooth shutter remote, page turner or footswitch pairs at the OS level and
+   presents itself as a Bluetooth keyboard. It does not need Web Bluetooth — which
+   Safari does not implement at all, and which cannot reach HID devices anyway. What
+   it sends is ordinary key presses, so the app just listens for them.
+
+   The one real trap: cheap camera remotes send Volume Up/Down, and iOS keeps those
+   for itself — a web app never sees them. Remotes that send Enter, Space, arrows or
+   page keys do come through. Those are usually sold as e-reader page turners.
+
+   One button is enough. The primary key advances whatever screen you are on, so a
+   single click walks front, back, confirm, next card, all the way to box complete.
+   ============================================================ */
+const KEYNAME = {
+  Space:'Space', Enter:'Enter', NumpadEnter:'Enter', ArrowRight:'Right arrow',
+  ArrowLeft:'Left arrow', ArrowUp:'Up arrow', ArrowDown:'Down arrow', PageUp:'Page up',
+  PageDown:'Page down', MediaPlayPause:'Play/pause', AudioVolumeUp:'Volume up',
+  AudioVolumeDown:'Volume down', Backslash:'Backslash'
+};
+const niceKey = c => KEYNAME[c] || String(c).replace(/^(Key|Digit)/, '');
+
+const DEFAULT_KEYS = ['Space','Enter','NumpadEnter','ArrowRight','ArrowUp','PageDown',
+  'PageUp','ArrowDown','ArrowLeft','MediaPlayPause','AudioVolumeUp','AudioVolumeDown',
+  'KeyB','Backslash'];
+
+const Remote = {
+  advanceKeys: new Set(DEFAULT_KEYS),
+  confirmKeys: new Set(),
+  custom: false,
+  lastSeen: '',
+
+  /* Deliberately short. Listing every accepted key overflows the row and tells you nothing;
+     what matters is whether a specific remote is bound, and to which button. */
+  label(){
+    if(!this.custom) return 'any key works';
+    const a = [...this.advanceKeys].map(niceKey);
+    const c = [...this.confirmKeys].map(niceKey);
+    return c.length ? `${a[0]} + ${c[0]}` : a[0];
+  },
+  paint(){ $('#stClicker').textContent = this.label(); },
+
+  load(){
+    try{
+      const s = JSON.parse(localStorage.getItem('scanapp.remote') || 'null');
+      if(s?.advance?.length){
+        this.advanceKeys = new Set(s.advance);
+        this.confirmKeys = new Set(s.confirm || []);
+        this.custom = true;
+      }
+    }catch(e){}
+    this.paint();
+  },
+  save(){
+    try{
+      localStorage.setItem('scanapp.remote', JSON.stringify({
+        advance:[...this.advanceKeys], confirm:[...this.confirmKeys] }));
+    }catch(e){}
+  },
+  reset(){
+    this.advanceKeys = new Set(DEFAULT_KEYS);
+    this.confirmKeys = new Set();
+    this.custom = false;
+    try{ localStorage.removeItem('scanapp.remote'); }catch(e){}
+    this.paint();
+  },
+
+  /* What "next" means on each screen. Anything not listed ignores the click. */
+  advance(){
+    switch(state.screen){
+      case 'start':    return $('#btnStart').click();
+      case 'count':    return $('#cntGo').disabled || $('#cntGo').click();
+      case 'capture':  return Shot.fire();
+      case 'review':   return $('#revOk').disabled || $('#revOk').click();
+      case 'complete': return $('#cmpDone').click();
+      case 'qr':       return $('#qrDemo').click();
+      case 'history':  return $('#histBack').click();
+    }
+  },
+  confirm(){
+    if(state.screen === 'review') return $('#revOk').disabled || $('#revOk').click();
+    if(state.screen === 'count')  return $('#cntGo').disabled || $('#cntGo').click();
+    return this.advance();
+  },
+
+  handle(e){
+    if($('#pairbox').classList.contains('on')) return Pair.capture(e);
+    if($('#menu').classList.contains('on')) return;
+    if(state.screen === 'signin') return;        // typing a name, not clicking
+    const code = e.code || e.key;
+    this.lastSeen = code;
+    if(this.confirmKeys.has(code)){ e.preventDefault(); return this.confirm(); }
+    if(this.advanceKeys.has(code)){ e.preventDefault(); return this.advance(); }
+  }
+};
+
+/* Two-step learn: which key takes a photo, which key confirms. Either can be skipped. */
+const Pair = {
+  step: 0, picked: { advance:[], confirm:[] },
+  open(){
+    this.step = 0; this.picked = { advance:[], confirm:[] };
+    $('#pairbox').classList.add('on'); this.render();
+  },
+  close(){ $('#pairbox').classList.remove('on'); },
+  render(){
+    const first = this.step === 0;
+    $('#pairTitle').textContent = first ? 'Press your capture button'
+                                        : 'Press your confirm button';
+    $('#pairBody').textContent = first
+      ? 'Pair the remote to this phone in Bluetooth settings first, then press the button you want for taking a photo. Skip both steps to go back to accepting any key.'
+      : 'Optional. Press a second button for confirming a card, or skip and the capture button does everything.';
+    const k = $('#pairKey');
+    k.className = 'pairkey'; k.textContent = 'Waiting for a key…';
+    $('#pairNext').textContent = first ? 'SKIP THIS STEP' : 'DONE';
+  },
+  capture(e){
+    e.preventDefault();
+    const code = e.code || e.key;
+    const k = $('#pairKey');
+    k.className = 'pairkey got'; k.textContent = niceKey(code) + '  ·  ' + code;
+    if(this.step === 0) this.picked.advance = [code];
+    else this.picked.confirm = [code];
+    $('#pairNext').textContent = this.step === 0 ? 'NEXT' : 'DONE';
+  },
+  next(){
+    if(this.step === 0){ this.step = 1; return this.render(); }
+    this.commit();
+  },
+  commit(){
+    if(this.picked.advance.length){
+      Remote.advanceKeys = new Set(this.picked.advance);
+      Remote.confirmKeys = new Set(this.picked.confirm);
+      Remote.custom = true;
+      Remote.save(); Remote.paint();
+      toast('Clicker paired · ' + niceKey(this.picked.advance[0]));
+    }else{
+      Remote.reset();
+      toast('Any key will click');
+    }
+    this.close();
+  }
+};
+
+/* ---------- sign in ---------- */
+function paintRecent(){
+  const box = $('#recentUsers');
+  const list = Session.recent();
+  box.innerHTML = list.map(u =>
+    `<button data-u="${u.replace(/"/g,'&quot;')}">${
+      u.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</button>`).join('');
+  box.querySelectorAll('button').forEach(b => b.onclick = ()=>{
+    $('#signName').value = b.dataset.u; $('#signGo').disabled = false;
+  });
+}
+function prefillSignIn(){
+  paintRecent();
+  const f = $('#signName');
+  f.value = Session.remembered || '';
+  $('#signGo').disabled = !f.value.trim();
+}
+$('#signName').oninput = e=>{ $('#signGo').disabled = !e.target.value.trim(); };
+$('#signName').onkeydown = e=>{ if(e.key === 'Enter' && !$('#signGo').disabled) $('#signGo').click(); };
+$('#signGo').onclick = ()=>{
+  Session.signIn($('#signName').value);
+  show('start'); paintLast();
+  toast('Signed in as ' + Session.user);
+};
+
+/* ---------- menu ---------- */
+function menuOpen(on){
+  $('#menu').classList.toggle('on', on);
+  $('#menuBack').classList.toggle('on', on);
+}
+$('#menuBtn').onclick = ()=>{ Session.paint(); menuOpen(!$('#menu').classList.contains('on')); };
+$('#menuBack').onclick = ()=>menuOpen(false);
+$('#menuSignout').onclick = ()=>{
+  menuOpen(false);
+  const pending = state.pending.front || state.pending.back;
+  if(state.box && (state.cards.length || pending) && state.screen !== 'complete'
+     && !confirm(`Sign out of box ${state.box.number}? Cards captured in this box are discarded.`))
+    return;
+  QR.stop(); Shot.end();
+  state.box = null; state.target = 0; state.cards = []; state.seq = 0;
+  state.pending = { front:null, back:null }; state.retake = null;
+  setCount(0);
+  Session.signOut();
+  prefillSignIn();
+  show('signin');
+};
+
+/* ---------- history ---------- */
+$('#menuSound').onclick = ()=>Sound.toggle();
+$('#menuHistory').onclick = ()=>{
+  menuOpen(false);
+  state.returnTo = ['history','hold','splash','signin'].includes(state.screen)
+    ? 'start' : state.screen;
+  Shot.disarm(); History.render(); show('history');
+};
+$('#histBack').onclick = ()=>{
+  const to = state.returnTo || 'start';
+  if(to === 'capture') return toCapture(state.side);
+  if(to === 'review')  return toReview();
+  if(to === 'qr'){ show('qr'); Cam.mount($('#stageQR')); return QR.start(); }
+  show(to);
+};
+
+$('#pairBtn').onclick = ()=>Pair.open();
+$('#pairCancel').onclick = ()=>Pair.close();
+$('#pairNext').onclick = ()=>Pair.next();
+addEventListener('keydown', e=>Remote.handle(e));
+
+addEventListener('resize', ()=>{ if(state.screen === 'capture') setGuideAspect(); });
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) Shot.disarm(); });
+</script>
+</body>
+</html>
