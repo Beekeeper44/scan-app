@@ -93,19 +93,25 @@ button,a,.frame,#qrthumb,.bpic{touch-action:manipulation}
   padding:20px 0 4px}
 .histrow{display:flex;align-items:center;gap:12px;border:1px solid var(--line);
   border-radius:10px;background:var(--panel);padding:11px;margin-bottom:8px}
-.hthumb{width:46px;height:60px;flex:0 0 46px;border-radius:6px;border:1px solid var(--line);
+.hthumb{width:54px;height:70px;flex:0 0 54px;border-radius:6px;border:1px solid var(--line);
   object-fit:contain;background:#fff;display:block}
 .hthumb.blank{display:grid;place-items:center;background:var(--panel2);color:var(--dim);
   font-size:14px;letter-spacing:.05em}
 .histrow .hnum{font-size:15px;letter-spacing:.08em;color:var(--signal);flex:0 0 auto}
 .histrow .hmid{flex:1;min-width:0}
-.histrow .hname{font-family:var(--disp);font-size:15px;font-weight:600;
+.histrow .hname{font-family:var(--disp);font-size:19px;font-weight:700;letter-spacing:-.01em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .histrow .hsub{font-size:11px;color:var(--dim);margin-top:3px}
-.histrow .hcount{font-family:var(--disp);font-size:20px;font-weight:700;flex:0 0 auto;
-  text-align:right;line-height:1}
-.histrow .hcount small{display:block;font-size:9.5px;letter-spacing:.14em;color:var(--dim);
-  margin-top:4px;font-weight:400}
+.histrow .hadd{flex:0 0 auto;display:flex;align-items:center;gap:6px;min-height:48px;
+  padding:0 10px;font-size:12.5px;font-weight:700;letter-spacing:.1em;color:var(--signal)}
+.histrow .hadd span{font-size:20px;line-height:1}
+.histrow .hadd:active{opacity:.6}
+.histrow{gap:10px}
+.histrow .hcount{flex:0 0 auto;display:flex;align-items:center;gap:8px;
+  border:1.5px solid var(--signal);border-radius:11px;padding:9px 11px}
+.histrow .hcount b{font-family:var(--disp);font-size:22px;font-weight:800;color:var(--signal);
+  line-height:1}
+.histrow .hcount small{font-size:11px;letter-spacing:.1em;color:var(--dim)}
 .histempty{text-align:center;color:var(--dim);font-size:13px;padding:40px 20px;line-height:1.6}
 #histBack{flex:0 0 auto;font-size:12px;font-weight:700;letter-spacing:.12em;
   color:var(--signal);border:1px solid var(--signal);background:rgba(57,255,20,.10);
@@ -202,6 +208,10 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 
 /* ---------- camera stage ---------- */
 .stage{position:relative;flex:1;background:#000;overflow:hidden;min-height:0}
+/* square preview: the widest a card can be on a portrait screen, and it holds a card or a
+   slab laid either way. The capture is the same square, so nothing is hidden. */
+#stageCap{flex:0 0 auto;width:100%;aspect-ratio:1;max-height:62vh}
+body.smallpreview #stageCap{max-height:44vh}
 .stage video,.stage canvas.live{position:absolute;inset:0;width:100%;height:100%;
   object-fit:cover}
 .stage.flip video,.stage.flip canvas.live{transform:rotate(180deg)}
@@ -220,9 +230,9 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 #guide .br.tr{top:-1px;right:-1px;border-left:0;border-bottom:0;border-radius:0 3px 0 0}
 #guide .br.bl{bottom:-1px;left:-1px;border-right:0;border-top:0;border-radius:0 0 0 3px}
 #guide .br.br2{bottom:-1px;right:-1px;border-left:0;border-top:0;border-radius:0 0 3px 0}
-#guide.armed .br{border-color:var(--amber)}
+#guide.armed .br{border-color:var(--signal)}
 #guide::after{content:'';position:absolute;inset:0;border:1px solid rgba(57,255,20,.16);border-radius:3px}
-#guide.armed::after{border-color:rgba(255,176,32,.3)}
+#guide.armed::after{border-color:rgba(57,255,20,.45)}
 .mask{position:absolute;background:rgba(0,0,0,.84);pointer-events:none}
 
 .hud{position:absolute;left:0;right:0;top:0;padding:12px 14px;display:flex;
@@ -234,12 +244,31 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 .pill.live{color:var(--signal)}
 .pill.warn{color:var(--amber);border-color:rgba(255,176,32,.4)}
 .pill.act{pointer-events:auto;cursor:pointer}
+.capmeta{flex:0 0 auto;display:flex;justify-content:space-between;align-items:flex-start;
+  gap:14px;padding:14px 16px 6px}
+.capk{font-size:13px;letter-spacing:.1em;color:var(--dim)}
+.capk b{color:var(--signal);font-weight:700}
+.capv{font-family:var(--disp);font-weight:800;font-size:30px;letter-spacing:-.02em;
+  color:var(--signal);line-height:1.05;margin-top:2px}
+.capsteps{flex:0 0 auto;display:flex;justify-content:center;gap:26px;padding:4px 16px 12px}
+.capstep{display:flex;flex-direction:column;align-items:center;gap:8px;opacity:.42}
+.capstep.on{opacity:1}
+.capstep.done{opacity:.8}
+.capsteplab{font-family:var(--disp);font-weight:800;font-size:22px;letter-spacing:-.01em;
+  color:var(--dim)}
+.capstep.on .capsteplab{color:var(--signal)}
+.capstep.done .capsteplab{color:var(--text)}
+.capstepbox{width:62px;height:86px;border-radius:10px;border:2px solid var(--line);
+  background:#070A08;overflow:hidden}
+.capstep.on .capstepbox{border-color:var(--signal);box-shadow:0 0 22px rgba(57,255,20,.45)}
+.capstep.done .capstepbox{border-color:rgba(57,255,20,.5)}
+.capstepbox img{width:100%;height:100%;object-fit:cover;display:block}
 .sidehint{position:absolute;left:0;right:0;bottom:0;text-align:center;padding:0 20px 14px;
   pointer-events:none}
 .caplabel{display:inline-block;font-family:var(--disp);font-weight:700;font-size:34px;
   letter-spacing:-.02em;color:#fff;padding:13px 30px;border-radius:100px;
   background:rgba(0,0,0,.66);backdrop-filter:blur(10px);transition:color .15s,background .15s}
-.caplabel.arm{color:var(--amber);background:rgba(0,0,0,.82)}
+.caplabel.arm{color:var(--signal);background:rgba(0,0,0,.82)}
 @media (max-height:700px){
   .caplabel{font-size:27px;padding:10px 24px}
   .capnote{font-size:13px;margin-top:7px}
@@ -256,11 +285,11 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 .shutter button{position:absolute;inset:8px;border-radius:50%;background:var(--text);
   transition:transform .08s}
 .shutter button:active{transform:scale(.9)}
-.shutter.armed button{background:var(--amber)}
+.shutter.armed button{background:var(--signal)}
 .shutter svg{position:absolute;inset:0;transform:rotate(-90deg)}
 .shutter circle{fill:none;stroke-width:3}
 .ring-bg{stroke:var(--line)}
-.ring-fg{stroke:var(--amber);stroke-linecap:round;transition:stroke-dashoffset .1s linear}
+.ring-fg{stroke:var(--signal);stroke-linecap:round;transition:stroke-dashoffset .1s linear}
 .hudthumb{width:50px;height:70px;border-radius:6px;overflow:hidden;display:none;
   border:1.5px solid rgba(255,255,255,.55);background:#000;box-shadow:0 3px 14px rgba(0,0,0,.6)}
 .hudthumb.on{display:block}
@@ -269,7 +298,7 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
   background:var(--panel)}
 .toggle button{padding:13px 15px;font-size:12.5px;font-weight:700;letter-spacing:.09em;
   color:var(--dim);min-height:48px;transition:background .15s,color .15s}
-#autoOn.on{background:var(--signal);color:#06210A}
+.toggle button.on{background:var(--signal);color:#06210A}
 #autoOff.on{background:#fff;color:#000}
 
 /* ---------- box identity block ---------- */
@@ -278,8 +307,8 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 .bpicwrap{position:relative;flex:0 0 auto}
 .boxid .bpic{width:78px;height:78px;display:block;border-radius:7px;border:1px solid var(--line);
   object-fit:contain;background:#fff;cursor:zoom-in}
-.bpicdel{position:absolute;top:-9px;right:-9px;width:30px;height:30px;border-radius:50%;
-  background:var(--red);color:#fff;font-size:14px;line-height:1;display:grid;place-items:center;
+.bpicdel{position:absolute;top:-12px;right:-12px;width:38px;height:38px;border-radius:50%;
+  background:var(--red);color:#fff;font-size:17px;line-height:1;display:grid;place-items:center;
   border:2px solid var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.6)}
 .bpicdel:active{transform:scale(.9)}
 #s-complete .bpicdel{display:none}
@@ -292,7 +321,7 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 .boxid .braw{font-size:11px;letter-spacing:.06em;color:var(--dim);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .boxid .brescan{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:6px;flex:0 0 auto;min-width:82px;min-height:60px;padding:11px 12px;
+  gap:6px;flex:0 0 auto;min-width:92px;min-height:72px;padding:13px 14px;
   border:1px solid var(--line);border-radius:11px;background:var(--panel2);
   font-family:var(--mono);font-size:12px;font-weight:500;letter-spacing:.08em;
   color:var(--text);line-height:1;transition:background .15s,border-color .15s}
@@ -359,8 +388,9 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 .pair .frame:active::after{opacity:1}
 .caprow{display:flex;align-items:center;justify-content:center;gap:9px}
 .caprow span{font-size:13px;letter-spacing:.14em;color:var(--dim)}
-.caprow .retake,.caprow .turn{display:grid;place-items:center;width:44px;height:44px;
-  margin:-9px 0;border-radius:9px}
+.caprow{gap:6px}
+.caprow .retake,.caprow .turn{display:grid;place-items:center;width:54px;height:54px;
+  margin:-13px 0;border-radius:11px;border:1px solid var(--line)}
 .caprow .retake{color:var(--red)}
 .caprow .turn{color:var(--signal)}
 .caprow .retake:active{background:rgba(255,59,78,.14)}
@@ -395,9 +425,15 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
   z-index:60;padding:24px}
 #lightbox.on{display:grid}
 #lightbox img{max-width:100%;max-height:80vh;border:1px solid var(--line);border-radius:8px}
-#pairbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;place-items:center;
-  z-index:70;padding:22px}
-#pairbox.on{display:grid}
+#pairbox,#cambox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;
+  place-items:center;z-index:70;padding:22px;overflow-y:auto}
+#pairbox.on,#cambox.on{display:grid}
+.camrow{margin:14px 0}
+.camrow label{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:12.5px;letter-spacing:.1em;color:var(--dim);margin-bottom:9px}
+.camrow label b{font-family:var(--disp);font-size:16px;color:var(--signal);letter-spacing:0}
+.camrow input[type=range]{width:100%;accent-color:var(--signal);height:32px}
+.camrow.off{display:none}
 .pairinner{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
   border-radius:14px;padding:20px}
 .pairinner h1{margin:4px 0 8px}
@@ -429,6 +465,7 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
       <div class="menuname" id="menuName">—</div>
     </div>
     <button id="menuHistory" role="menuitem">History</button>
+    <button id="menuCamera" role="menuitem">Camera settings</button>
     <button id="menuSound" role="menuitem">Sound on</button>
     <button id="menuSignout" role="menuitem">Sign out</button>
   </div>
@@ -541,7 +578,7 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 
     <!-- 4 · COUNT -->
     <section id="s-count" class="screen">
-      <div class="eyebrow" style="padding-top:18px">BOX CONFIRMED</div>
+      <div class="eyebrow" id="cntEye" style="padding-top:18px">BOX CONFIRMED</div>
       <div class="boxid">
         <div class="bpicwrap">
           <img class="bpic" alt="Box photo">
@@ -598,10 +635,20 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
         </div>
         <div class="focustap" id="focusTap"></div>
         <div class="focusring" id="focusRing"></div>
-        <div class="sidehint">
-          <div class="caplabel" id="capLabel">Front Scan</div>
-          <div class="capnote">PLACE CARD</div>
+      </div>
+      <div class="capmeta">
+        <div>
+          <div class="capk">TAP TO CAPTURE</div>
+          <div class="capv" id="capSideBig">FRONT</div>
         </div>
+        <div style="text-align:right">
+          <div class="capk">THIS BOX: <b id="capDone">0</b></div>
+          <div class="capv">CARDS</div>
+        </div>
+      </div>
+      <div class="capsteps">
+        <div class="capstep on" id="stepFront"><div class="capsteplab">FRONT</div><div class="capstepbox"></div></div>
+        <div class="capstep" id="stepBack"><div class="capsteplab">BACK</div><div class="capstepbox"></div></div>
       </div>
       <div class="dock">
         <div class="side" style="display:flex;justify-content:flex-end">
@@ -717,6 +764,32 @@ h1{font-family:var(--disp);font-size:26px;font-weight:700;letter-spacing:-.02em;
 <div class="toast" id="toast"></div>
 <div id="lightbox"><img id="lightImg" alt="Box code"></div>
 
+<div id="cambox">
+  <div class="pairinner">
+    <div class="eyebrow">CAMERA SETTINGS</div>
+    <h1 style="font-size:22px">Camera</h1>
+    <div class="camrow"><label>Zoom<b id="camZoomV">2.20x</b></label>
+      <input type="range" id="camZoom" min="1" max="5" step="0.1" value="2.2"></div>
+    <div class="camrow"><label>Exposure<b id="camExpV">+0.0 EV</b></label>
+      <input type="range" id="camExp" min="-3" max="3" step="0.1" value="0"></div>
+    <div class="camrow" id="camLensRow"><label>Lens</label>
+      <select id="camLens" class="field" style="padding:12px"></select></div>
+    <div class="camrow"><label>Preview size</label>
+      <div class="toggle" style="width:100%">
+        <button id="camBig" class="on" style="flex:1">LARGE</button>
+        <button id="camSmall" style="flex:1">SMALL</button>
+      </div></div>
+    <div class="camrow"><label>Auto capture delay<b id="camDelayV">3.5s</b></label>
+      <input type="range" id="camDelay" min="1" max="8" step="0.5" value="3.5"></div>
+    <p class="sub" style="font-size:12.5px" id="camNote">Zoom, exposure and lens depend on
+      what the phone exposes to the browser. Anything it doesn't support is hidden.</p>
+    <div class="row">
+      <button class="btn ghost sm" id="camReset">RESET</button>
+      <button class="btn sm" id="camDone">DONE</button>
+    </div>
+  </div>
+</div>
+
 <div id="pairbox">
   <div class="pairinner">
     <div class="eyebrow">PAIR A CLICKER</div>
@@ -788,16 +861,22 @@ const LABEL_IMG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQgAAAGXAQAAAAB
 
 /* ▶ CONFIG 4 — capture tuning. */
 const CFG = {
-  autoDelay: 2000,        // ms countdown once the frame settles
+  autoDelay: 3500,        // ms countdown once the frame settles
   settleMs: 350,          // how long the frame must be still before arming
   holdMs: 2000,           // pause after the back image before review
   stillThreshold: 5.5,    // lower = stricter stillness
   motionThreshold: 13,    // re-arm trigger (card flipped / swapped)
-  maxEdge: 2000,          // longest side of a saved image, px
+  maxEdge: 2600,          // longest side of a captured frame, px
   quality: 0.92,
   pad: 0.04,              // safety margin outside the guide
-  guide: 1.00,            // square: a card fits laid either way, detection sorts out which
-  cardMm: 63.5,           // raw card short edge; the scale reference for the border
+  guide: 1.00,            // square: a card or a slab fits laid either way
+  /* The border is a physical 3mm, so the app has to know how wide the thing in frame
+     really is. A raw card and a slab are different widths AND different shapes, so the
+     shape says which one it is — 0.714 vs 0.619 is a wide enough gap to be sure. */
+  sizes: [
+    { kind:'raw',  ar: 63.5/88.9,    mm: 63.5  },   // 2.5 x 3.5 in
+    { kind:'slab', ar: 82.55/133.35, mm: 82.55 }    // 3.25 x 5.25 in
+  ],
   padMm: 3.0              // black border on the saved image
 };
 
@@ -829,7 +908,7 @@ const state = {
   screen:'splash', box:null, target:0, cards:[], seq:0,
   side:'front', pending:{front:null,back:null},
   retake:null, auto:false, demo:false, countBuf:'', returnTo:'start', flip:true,
-  rotDir:'ccw', meta:{front:null, back:null}
+  rotDir:'ccw', meta:{front:null, back:null}, seqBase:0
 };
 
 /* ============================================================
@@ -846,7 +925,9 @@ const Cam = {
         video:{ facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1440} },
         audio:false
       });
-      state.demo = false; this.autoFocus(); return true;
+      state.demo = false; this.autoFocus();
+      setTimeout(()=>CamCfg.apply(), 300);
+      return true;
     }catch(e){
       state.demo = true; return false;
     }
@@ -1030,7 +1111,35 @@ function grab(cropRect){
   return out.toDataURL('image/jpeg', CFG.quality);
 }
 
-/* map the on-screen guide box back to source pixels (object-fit: cover) */
+/* The guide says where to put the card; it does not say where the picture stops. Capturing
+   only the guide is what clipped a sideways card, and a sideways slab is half again longer,
+   so there is no multiplier that is safe at every camera height. Take the whole frame and
+   let findCard do the cropping — the guide survives as the fallback if detection misses. */
+/* Exactly the square the preview shows — centred on the sensor, as wide as the sensor is
+   tall. Nothing visible is dropped and nothing invisible is kept. */
+function captureRect(){
+  const src = Cam.el; if(!src) return null;
+  const W = src.videoWidth || src.width, H = src.videoHeight || src.height;
+  if(!W) return null;
+  const side = Math.min(W, H);
+  const sx = (W - side)/2, sy = (H - side)/2;
+  const g = guideCrop();
+  return { sx, sy, cw:side, chh:side,
+           guide: g ? { x:g.sx - sx, y:g.sy - sy, w:g.cw, h:g.chh } : null };
+}
+
+/* Where the video actually sits on screen. It is letterboxed now (object-fit: contain)
+   so the whole sensor frame is visible — what you see is exactly what gets captured. */
+function videoRect(stageEl){
+  const src = Cam.el; if(!src) return null;
+  const vw = src.videoWidth || src.width, vh = src.videoHeight || src.height;
+  if(!vw) return null;
+  const r = stageEl.getBoundingClientRect();
+  const s = Math.max(r.width/vw, r.height/vh);         // cover
+  return { s, w: vw*s, h: vh*s, x: (r.width - vw*s)/2, y: (r.height - vh*s)/2, vw, vh, r };
+}
+
+/* map the on-screen guide box back to source pixels */
 function guideCrop(){
   const stage = $('#stageCap'), g = $('#guide');
   const src = Cam.el;
@@ -1170,18 +1279,22 @@ function findCard(img){
                w: (box[2]-box[0])*img.naturalWidth,
                h: (box[3]-box[1])*img.naturalHeight };
   const ar = px.w / px.h;
-  if(!((ar > 0.50 && ar < 0.95) || (ar > 1.05 && ar < 2.00))) return null;
+  if(!((ar > 0.45 && ar < 0.95) || (ar > 1.05 && ar < 2.25))) return null;
   return { ...px, ar };
 }
 
-async function finishImage(dataUrl){
+async function finishImage(dataUrl, fallback){
   const img = await loadImg(dataUrl);
   const box = findCard(img);
-  const src = box || { x:0, y:0, w:img.naturalWidth, h:img.naturalHeight };
+  const src = box || fallback || { x:0, y:0, w:img.naturalWidth, h:img.naturalHeight };
   const rotate = src.w > src.h;
   const outW = rotate ? src.h : src.w;
   const outH = rotate ? src.w : src.h;
-  const pxmm = outW / CFG.cardMm;
+  /* raw card or slab? read it off the shape, then scale the border from that */
+  const shape = outW / outH;
+  const size = CFG.sizes.reduce((best, s)=>
+    Math.abs(Math.log(shape/s.ar)) < Math.abs(Math.log(shape/best.ar)) ? s : best, CFG.sizes[0]);
+  const pxmm = outW / size.mm;
   const pad = Math.max(2, Math.round(CFG.padMm * pxmm));
 
   const c = document.createElement('canvas');
@@ -1196,15 +1309,28 @@ async function finishImage(dataUrl){
   }
   x.drawImage(img, src.x, src.y, src.w, src.h, 0, 0, src.w, src.h);
   x.restore();
+  /* If the detected object reaches the edge of the frame it is probably being cut off —
+     the phone is too low for something this size. Better to say so than to save a clipped
+     slab and have it noticed downstream. */
+  const m = Math.max(6, img.naturalWidth*0.006);
+  const clipped = !!box && (box.x <= m || box.y <= m ||
+    box.x + box.w >= img.naturalWidth - m || box.y + box.h >= img.naturalHeight - m);
   return {
     url: c.toDataURL('image/jpeg', CFG.quality),
-    found: !!box, rotated: rotate, pad, pxmm
+    found: !!box, rotated: rotate, pad, pxmm, kind: size.kind, clipped
   };
 }
 
 /* one tap on the confirm screen when a card came out the wrong way round */
 async function rotatePending(side){
   const url = state.pending[side]; if(!url) return;
+  /* If the app rotated this one and you had to correct it, the cards after it were laid
+     the same way — so remember the correction instead of making you tap every time. */
+  if(state.meta[side]?.rotated){
+    state.rotDir = state.rotDir === 'ccw' ? 'cw' : 'ccw';
+    try{ localStorage.setItem('scanapp.rotdir', state.rotDir); }catch(e){}
+    toast('Turning the other way from now on');
+  }
   const img = await loadImg(url);
   const c = document.createElement('canvas');
   c.width = img.naturalHeight; c.height = img.naturalWidth;
@@ -1268,7 +1394,7 @@ const Shot = {
     if(this.arming) return;
     this.arming = true; this.t0 = Date.now();
     $('#guide').classList.add('armed'); $('#shutter').classList.add('armed');
-    $('#capLabel').classList.add('arm');
+    $('#capSideBig').style.color = 'var(--amber)';
     const step = ()=>{
       if(!this.arming) return;
       const p = Math.min(1, (Date.now()-this.t0)/CFG.autoDelay);
@@ -1282,14 +1408,21 @@ const Shot = {
     this.arming = false; cancelAnimationFrame(this.raf);
     $('#ring').style.strokeDashoffset = 219.9;
     $('#guide').classList.remove('armed'); $('#shutter').classList.remove('armed');
-    $('#capLabel').classList.remove('arm');
+    $('#capSideBig').style.color = '';
     this.stillSince = 0;
   },
   fire(){
     this.disarm();
-    const img = grab(guideCrop());
+    const r = captureRect();
+    const img = grab(r);
     if(!img) return toast('Frame not ready');
-    onCaptured(img);
+    /* if the card can't be found, fall back to exactly what the guide framed */
+    let fb = null;
+    if(r && r.guide){
+      const s = Math.min(1, CFG.maxEdge / Math.max(r.cw, r.chh));
+      fb = { x:r.guide.x*s, y:r.guide.y*s, w:r.guide.w*s, h:r.guide.h*s };
+    }
+    onCaptured(img, fb);
   }
 };
 
@@ -1300,7 +1433,10 @@ const Shot = {
    the label below it can never sit over the card. Change a reserve if either grows. */
 const RESERVE = { tall:{ top:96, bottom:110 }, short:{ top:84, bottom:96 } };
 function loadFlip(){
-  try{ state.flip = localStorage.getItem('scanapp.flip') !== 'off'; }catch(e){}
+  try{
+    state.flip = localStorage.getItem('scanapp.flip') !== 'off';
+    state.rotDir = localStorage.getItem('scanapp.rotdir') || 'ccw';
+  }catch(e){}
   paintFlip();
 }
 function paintFlip(){
@@ -1324,14 +1460,11 @@ function setGuideAspect(){
   const stage = $('#stageCap'), g = $('#guide');
   const r = stage.getBoundingClientRect();
   if(!r.height) return;
-  // reserves are fixed, not measured, so the crop region is identical on both sides
-  // of a card even though the front thumbnail only shows for the back shot
-  const R = r.height < 700 ? RESERVE.short : RESERVE.tall;
-  let h = Math.max(r.height*0.40, r.height - R.top - R.bottom);
-  let w = h * CFG.guide;
-  if(w > r.width*0.88){ w = r.width*0.88; h = w/CFG.guide; }
-  const gx = (r.width - w)/2;
-  const gy = Math.max(0, R.top + (r.height - R.top - R.bottom - h)/2);
+  /* The guide is a placement aid inside the visible frame — it no longer decides what gets
+     captured, so it can hug the video rather than the stage. */
+  let side = Math.min(r.width, r.height) * 0.96;
+  let w = side * CFG.guide, h = side;
+  const gx = (r.width - w)/2, gy = (r.height - h)/2;
   Object.assign(g.style, { left:gx+'px', top:gy+'px', width:w+'px', height:h+'px' });
   Object.assign($('#mT').style,{left:0,top:0,width:'100%',height:gy+'px'});
   Object.assign($('#mB').style,{left:0,top:(gy+h)+'px',width:'100%',
@@ -1376,8 +1509,16 @@ function toCapture(side){
   setGuideAspect();
   $('#capCard').textContent =
     `${state.box.number} · CARD ${String(state.seq+1).padStart(2,'0')}/${state.target}`;
-  $('#capLabel').textContent = side === 'front' ? 'Front Scan' : 'Back Scan';
-  $('#capLabel').classList.remove('arm');
+  $('#capSideBig').textContent = side === 'front' ? 'FRONT' : 'BACK';
+  $('#capDone').textContent = state.cards.length;
+  $('#stepFront').className = 'capstep ' + (side === 'front' ? 'on'
+    : (state.pending.front ? 'done' : ''));
+  $('#stepBack').className  = 'capstep ' + (side === 'back' ? 'on'
+    : (state.pending.back ? 'done' : ''));
+  const fb = $('#stepFront').querySelector('.capstepbox');
+  fb.innerHTML = state.pending.front ? `<img src="${state.pending.front}" alt="">` : '';
+  const bb = $('#stepBack').querySelector('.capstepbox');
+  bb.innerHTML = state.pending.back ? `<img src="${state.pending.back}" alt="">` : '';
   const t = $('#capThumb');
   const showFront = side === 'back' && state.pending.front;
   t.classList.toggle('on', !!showFront);
@@ -1385,15 +1526,17 @@ function toCapture(side){
   paintTop(); Shot.begin();
 }
 
-async function onCaptured(img){
+async function onCaptured(img, fallback){
   Sound.click(); navigator.vibrate?.(28);
   const side = state.side;
   let out;
-  try{ out = await finishImage(img); }
+  try{ out = await finishImage(img, fallback); }
   catch(e){ out = { url:img, found:false, rotated:false }; }
   state.pending[side] = out.url;
-  state.meta[side] = { found: out.found, rotated: out.rotated };
+  state.meta[side] = { found: out.found, rotated: out.rotated, kind: out.kind,
+                       clipped: out.clipped };
   if(!out.found) toast('Card edge not found — border added to the full frame');
+  else if(out.clipped) toast('Touching the frame edge — raise the phone a little');
 
   if(state.retake){                       // came from review — go straight back
     state.retake = null; Shot.end(); return toReview();
@@ -1434,8 +1577,11 @@ function fitFrame(img, frame, src){
 
 function toReview(){
   show('review');
+  const kinds = [state.meta.front?.kind, state.meta.back?.kind].filter(Boolean);
+  const kind = kinds.length && kinds.every(k => k === kinds[0]) ? kinds[0].toUpperCase() : '';
   $('#revEye').textContent =
-    `CARD ${String(state.seq+1).padStart(2,'0')} OF ${String(state.target).padStart(2,'0')}`;
+    `CARD ${String(state.seq+1).padStart(2,'0')} OF ${String(state.target).padStart(2,'0')}`
+    + (kind ? ` · ${kind}` : '');
   fitFrame($('#revFimg'), $('#revF'), state.pending.front);
   fitFrame($('#revBimg'), $('#revB'), state.pending.back);
   $('#revOk').disabled = !(state.pending.front && state.pending.back);
@@ -1444,7 +1590,7 @@ function toReview(){
 
 async function confirmCard(){
   const id = 'C' + Date.now().toString(36).toUpperCase().slice(-6);
-  const seq = state.seq + 1;
+  const seq = state.seqBase + state.seq + 1;
   const rec = { id, seq, at: new Date().toISOString(),
                 finish: { front: state.meta.front, back: state.meta.back },
                 front: state.pending.front, back: state.pending.back, uploads: [] };
@@ -1491,10 +1637,11 @@ function resetSession(){
   if(state.box && state.cards.length){
     const entry = { box: state.box.number, name: state.box.name, cards: state.cards.length,
                     at: Date.now(), by: Session.user || '', thumb: state.box.thumb || '',
+                    lastSeq: state.seqBase + state.cards.length,
                     partial: state.cards.length < state.target };
     History.add(entry);
   }
-  state.box = null; state.target = 0; state.cards = []; state.seq = 0;
+  state.box = null; state.target = 0; state.cards = []; state.seq = 0; state.seqBase = 0;
   state.pending = { front:null, back:null }; state.retake = null;
   setCount(0);
   paintLast(); show('start');
@@ -1617,6 +1764,7 @@ async function acceptCode(raw, snapshot){
   $('#qrthumb').src = snapshot;
   makeThumb(snapshot).then(t=>{ if(state.box) state.box.thumb = t; });
   Sound.click(); navigator.vibrate?.([20,40,20]);
+  $('#cntEye').textContent = 'BOX CONFIRMED';
   show('count'); paintTop();
   toast('Box ' + state.box.number + ' locked in');
 }
@@ -1649,7 +1797,7 @@ try{ localStorage.removeItem('arenascan.last'); }catch(e){}   // legacy key
     // Always ask who is scanning. A station is shared, and silently restoring the last
     // person would stamp their name on someone else's boxes.
     Session.load(); prefillSignIn(); show('signin');
-    paintLast(); Remote.load(); Sound.load(); loadFlip();
+    paintLast(); Remote.load(); Sound.load(); loadFlip(); CamCfg.load();
     $('#stCam').textContent = navigator.mediaDevices ? 'ready on request' : 'unavailable';
     $('#stDest').textContent = Storage.mode === 'queue'
       ? 'local queue · not linked' : 'presigned upload';
@@ -1730,15 +1878,24 @@ $('#cntGo').onclick = ()=>{
 };
 
 // capture screen
-$('#focusTap').onclick = async e=>{
+/* The preview is the shutter. Focus moves to a long press, so a normal tap always shoots. */
+let focusTimer = null;
+$('#focusTap').addEventListener('pointerdown', e=>{
   const r = $('#stageCap').getBoundingClientRect();
   const nx = (e.clientX - r.left)/r.width, ny = (e.clientY - r.top)/r.height;
-  const ring = $('#focusRing');
-  ring.style.left = (e.clientX - r.left)+'px'; ring.style.top = (e.clientY - r.top)+'px';
-  ring.classList.remove('go'); void ring.offsetWidth; ring.classList.add('go');
-  const ok = await Cam.focusAt(nx, ny);
-  if(!ok && !state.demo) toast('This camera does not expose focus control');
-};
+  focusTimer = setTimeout(async ()=>{
+    focusTimer = null;
+    const ring = $('#focusRing');
+    ring.style.left = (e.clientX - r.left)+'px'; ring.style.top = (e.clientY - r.top)+'px';
+    ring.classList.remove('go'); void ring.offsetWidth; ring.classList.add('go');
+    navigator.vibrate?.(14);
+    const ok = await Cam.focusAt(nx, ny);
+    toast(ok ? 'Focusing there' : 'This camera has no focus control');
+  }, 550);
+}, { passive:true });
+['pointerup','pointercancel','pointerleave'].forEach(ev =>
+  $('#focusTap').addEventListener(ev, ()=>{ clearTimeout(focusTimer); }, { passive:true }));
+$('#focusTap').onclick = ()=>{ if(focusTimer === null) return; Shot.fire(); };
 $('#btnShoot').onclick = ()=>Shot.fire();
 $('#autoOn').onclick = ()=>{ state.auto = true;
   $('#autoOn').classList.add('on'); $('#autoOff').classList.remove('on');
@@ -1904,6 +2061,95 @@ addEventListener('pointerdown', ()=>Sound.unlock(), { once:true });
 addEventListener('keydown',     ()=>Sound.unlock(), { once:true });
 
 /* ============================================================
+   CAMERA SETTINGS
+
+   ▶ CONFIG 7 — starting points for the rig. Zoom and exposure are applied through
+   MediaStreamTrack constraints, which Safari only partly supports; whatever the phone
+   doesn't report as a capability is hidden rather than shown as a dead control.
+   ============================================================ */
+const CamCfg = {
+  defaults: { zoom:2.2, exposure:0, lens:'', preview:'large', delay:3.5 },
+  v: null,
+  load(){
+    this.v = { ...this.defaults };
+    try{ Object.assign(this.v, JSON.parse(localStorage.getItem('scanapp.cam') || '{}')); }
+    catch(e){}
+    CFG.autoDelay = this.v.delay * 1000;
+    this.paint();
+  },
+  save(){
+    try{ localStorage.setItem('scanapp.cam', JSON.stringify(this.v)); }catch(e){}
+    CFG.autoDelay = this.v.delay * 1000;
+  },
+  paint(){
+    $('#camZoom').value = this.v.zoom;   $('#camZoomV').textContent = (+this.v.zoom).toFixed(2)+'x';
+    $('#camExp').value  = this.v.exposure;
+    $('#camExpV').textContent = (this.v.exposure >= 0 ? '+' : '') + (+this.v.exposure).toFixed(1)+' EV';
+    $('#camDelay').value = this.v.delay; $('#camDelayV').textContent = (+this.v.delay).toFixed(1)+'s';
+    $('#camBig').classList.toggle('on', this.v.preview !== 'small');
+    $('#camSmall').classList.toggle('on', this.v.preview === 'small');
+    document.body.classList.toggle('smallpreview', this.v.preview === 'small');
+  },
+  /* only offer what the track actually reports */
+  async probe(){
+    const t = Cam.stream?.getVideoTracks?.()[0];
+    const caps = t?.getCapabilities ? t.getCapabilities() : {};
+    $('#camZoom').closest('.camrow').classList.toggle('off', !caps.zoom);
+    $('#camExp').closest('.camrow').classList.toggle('off', !caps.exposureCompensation);
+    if(caps.zoom){
+      $('#camZoom').min = caps.zoom.min; $('#camZoom').max = caps.zoom.max;
+      $('#camZoom').step = caps.zoom.step || 0.1;
+    }
+    if(caps.exposureCompensation){
+      const e = caps.exposureCompensation;
+      $('#camExp').min = e.min; $('#camExp').max = e.max; $('#camExp').step = e.step || 0.1;
+    }
+    let cams = [];
+    try{
+      cams = (await navigator.mediaDevices.enumerateDevices())
+        .filter(d => d.kind === 'videoinput' && !/front/i.test(d.label));
+    }catch(e){}
+    const row = $('#camLensRow');
+    row.classList.toggle('off', cams.length < 2);
+    if(cams.length > 1){
+      $('#camLens').innerHTML = cams.map(c =>
+        `<option value="${c.deviceId}">${(c.label || 'Camera').replace(/^Back\s*/i,'')}</option>`).join('');
+      const ultra = cams.find(c => /ultra/i.test(c.label));
+      $('#camLens').value = this.v.lens || (ultra ? ultra.deviceId : cams[0].deviceId);
+    }
+    this.paint();
+    if(!caps.zoom && !caps.exposureCompensation && cams.length < 2)
+      $('#camNote').textContent = 'This browser exposes no camera controls, so only the '
+        + 'preview size and capture delay apply here.';
+  },
+  async apply(){
+    const t = Cam.stream?.getVideoTracks?.()[0];
+    if(!t?.applyConstraints) return;
+    const caps = t.getCapabilities ? t.getCapabilities() : {};
+    const adv = [];
+    if(caps.zoom) adv.push({ zoom: Math.min(caps.zoom.max,
+      Math.max(caps.zoom.min, +this.v.zoom)) });
+    if(caps.exposureCompensation) adv.push({ exposureCompensation: +this.v.exposure });
+    if(adv.length){ try{ await t.applyConstraints({ advanced: adv }); }catch(e){} }
+  },
+  async setLens(deviceId){
+    if(!deviceId || deviceId === this.v.lens) return;
+    this.v.lens = deviceId; this.save();
+    try{
+      Cam.stop();
+      Cam.stream = await navigator.mediaDevices.getUserMedia({
+        video:{ deviceId:{ exact: deviceId }, width:{ideal:2560}, height:{ideal:1440} },
+        audio:false });
+      Cam.autoFocus();
+      const key = state.screen === 'qr' ? 'qr' : 'cap';
+      Cam.attach(key === 'qr' ? $('#stageQR') : $('#stageCap'), key);
+      await this.apply();
+      toast('Lens changed');
+    }catch(e){ toast('That lens is not available'); }
+  }
+};
+
+/* ============================================================
    SESSION
 
    ▶ CONFIG 6 — this is a name badge, not authentication. It records who scanned a box
@@ -1965,8 +2211,19 @@ const History = {
   },
   /* Quota-safe: on failure, halve the list and retry, then fall back to dropping the
      images entirely. Losing old thumbnails is fine; losing the record is not. */
+  find(box){ return this.all().find(r => String(r.box) === String(box)); },
+
   add(entry){
-    let rows = [entry, ...this.all()].slice(0, 60);
+    /* One row per box. Adding cards to a box you already scanned updates that row and moves
+       it to the top, instead of leaving two rows that each tell half the story. */
+    const prev = this.find(entry.box);
+    if(prev){
+      entry.cards   = (prev.cards || 0) + entry.cards;
+      entry.thumb   = entry.thumb || prev.thumb;
+      entry.lastSeq = Math.max(entry.lastSeq || 0, prev.lastSeq || 0);
+    }
+    const rest = this.all().filter(r => String(r.box) !== String(entry.box));
+    let rows = [entry, ...rest].slice(0, 60);
     for(let i = 0; i < 4; i++){
       try{ localStorage.setItem('scanapp.history', JSON.stringify(rows)); return; }
       catch(e){ rows = rows.slice(0, Math.max(4, Math.floor(rows.length/2))); }
@@ -1997,12 +2254,14 @@ const History = {
         ${r.thumb ? `<img class="hthumb" src="${r.thumb}" alt="Label for box ${esc(r.box)}">`
                   : `<div class="hthumb blank">${esc(String(r.box).slice(-2))}</div>`}
         <div class="hmid">
-          <div class="hnum">${esc(r.box)}</div>
-          <div class="hname">${esc(r.name)}</div>
-          <div class="hsub">${fmt(r.at)}${r.by ? ' · ' + esc(r.by) : ''}${
+          <div class="hname">${esc(r.name) || esc(r.box)}</div>
+          <div class="hsub">${esc(r.box)} · ${fmt(r.at)}${r.by ? ' · ' + esc(r.by) : ''}${
             r.partial ? ' · ended early' : ''}</div>
         </div>
-        <div class="hcount">${r.cards}<small>CARD${r.cards === 1 ? '' : 'S'}</small></div>
+        <div class="hcount"><b>${r.cards}</b><small>CARD${r.cards === 1 ? '' : 'S'}</small></div>
+        <button class="hadd" data-box="${esc(r.box)}" aria-label="Add more cards to box ${esc(r.box)}">
+          ADD <span>&rsaquo;</span>
+        </button>
       </div>`;
 
     const section = (label, items) =>
@@ -2210,12 +2469,51 @@ $('#menuSignout').onclick = ()=>{
 
 /* ---------- history ---------- */
 $('#menuSound').onclick = ()=>Sound.toggle();
+$('#menuCamera').onclick = async ()=>{
+  menuOpen(false); $('#cambox').classList.add('on'); await CamCfg.probe();
+};
+$('#camDone').onclick = ()=>$('#cambox').classList.remove('on');
+$('#camReset').onclick = ()=>{
+  CamCfg.v = { ...CamCfg.defaults }; CamCfg.save(); CamCfg.paint(); CamCfg.apply();
+  toast('Camera settings reset');
+};
+$('#camZoom').oninput = e=>{ CamCfg.v.zoom = +e.target.value; CamCfg.paint(); };
+$('#camZoom').onchange = ()=>{ CamCfg.save(); CamCfg.apply(); };
+$('#camExp').oninput = e=>{ CamCfg.v.exposure = +e.target.value; CamCfg.paint(); };
+$('#camExp').onchange = ()=>{ CamCfg.save(); CamCfg.apply(); };
+$('#camDelay').oninput = e=>{ CamCfg.v.delay = +e.target.value; CamCfg.paint(); };
+$('#camDelay').onchange = ()=>CamCfg.save();
+$('#camLens').onchange = e=>CamCfg.setLens(e.target.value);
+$('#camBig').onclick = ()=>{ CamCfg.v.preview='large'; CamCfg.save(); CamCfg.paint();
+  if(state.screen==='capture') setGuideAspect(); };
+$('#camSmall').onclick = ()=>{ CamCfg.v.preview='small'; CamCfg.save(); CamCfg.paint();
+  if(state.screen==='capture') setGuideAspect(); };
+$('#histList').addEventListener('click', e=>{
+  const b = e.target.closest('.hadd');
+  if(b) resumeBox(b.dataset.box);
+});
 $('#menuHistory').onclick = ()=>{
   menuOpen(false);
   state.returnTo = ['history','hold','splash','signin'].includes(state.screen)
     ? 'start' : state.screen;
   Shot.disarm(); History.render(); show('history');
 };
+/* ADD reopens a box: same number and name, and the card numbering picks up where it
+   stopped so the stored keys stay in order instead of overwriting the first run. */
+function resumeBox(boxId){
+  const r = History.find(boxId);
+  if(!r) return toast('That box is no longer in the history');
+  state.box = { number: r.box, name: r.name, raw: r.box,
+                url: '', qrImage: r.thumb || '', thumb: r.thumb || '' };
+  state.seqBase = r.lastSeq || r.cards || 0;
+  state.target = 0; state.cards = []; state.seq = 0;
+  state.pending = { front:null, back:null }; state.meta = { front:null, back:null };
+  setCount(0);
+  $('#cntEye').textContent = `ADDING TO BOX · ${r.cards} ALREADY SCANNED`;
+  show('count'); paintTop();
+  toast(`Box ${r.box} · card numbering continues at ${state.seqBase + 1}`);
+}
+
 $('#histBack').onclick = ()=>{
   const to = state.returnTo || 'start';
   if(to === 'capture') return toCapture(state.side);
@@ -2242,7 +2540,7 @@ addEventListener('keydown', e=>Remote.handle(e));
    finger happened to land on. Requiring the finger to lift near where it landed keeps
    scrolling intact and still removes the delay.
    ============================================================ */
-const PRESSABLE = 'button,.pill.act,.frame,.cell,.bpic,.histrow';
+const PRESSABLE = 'button,.pill.act,.frame,.cell,.bpic,.histrow,.toggle button';
 let fdown = null, synthetic = false, blockEl = null, blockUntil = 0;
 
 function clearPressed(){
