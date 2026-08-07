@@ -1,181 +1,290 @@
-# Scan App
+# Set IDs + Card Match → Vercel
 
-Arena Club box and card capture. Single file — `scan-app.html` is the whole app.
+A single-page app with two tabs:
 
-## Deploy to Vercel
+- **Sets** — a browsable/searchable Set ID registry synced live from Metabase question **21088 ("set-ids")**.
+- **Card Match** — look up a graded card by **cert** (type, scan, or OCR a label image) against Metabase question **30460 ("card-match")**, with **Card Hedger** comparable sales shown to the right and Card Hedger as a card-details fallback.
 
+```
+vercel-setids/
+├─ index.html          the app
+├─ api/
+│  ├─ set-ids.js       proxy → Metabase 21088 (Sets tab)
+│  └─ card-match.js    proxy → Metabase 30460 + Card Hedger (Card Match tab)
+├─ package.json
+├─ vercel.json
+└─ README.md
+```
+
+## Why proxies?
+Browsers can't call the authenticated Metabase or Card Hedger APIs directly — CORS blocks it
+and the keys must never ship in a public file. The `/api/*` functions run on Vercel's server,
+hold the keys in environment variables, call the upstreams, and return clean JSON on the same
+origin. If a proxy is unreachable, the app degrades gracefully (Sets shows seed data; Card
+Match shows "offline / no sales").
+
+## Environment variables (Vercel → Project → Settings → Environment Variables)
+
+| Variable | Required | Default | Used by |
+|---|---|---|---|
+| `METABASE_API_KEY` | ✅ yes | — | both proxies |
+| `METABASE_URL` | optional | `https://arena-club.metabaseapp.com` | both |
+| `METABASE_CARD_ID` | optional | `21088` | Sets |
+| `CARD_MATCH_CARD_ID` | optional | `30460` | Card Match |
+| `CARDHEDGE_URL` | optional | `https://api.cardhedger.com` | Card Match sales/fallback |
+| `CARDHEDGE_API_KEY` | optional | — | Card Match sales/fallback |
+| `CARDHEDGE_DEFAULT_GRADER` | optional | `PSA` | Card Match |
+
+Card Match works off Metabase alone if the `CARDHEDGE_*` vars are unset (just no sales panel).
+
+## Deploy
+
+### Option A — Vercel dashboard (no CLI)
+1. Push this folder to GitHub (or drag-drop it into the Vercel dashboard).
+2. **New Project → Import**. Framework preset: **Other** (no build step).
+3. Add the environment variables above.
+4. **Deploy.**
+
+### Option B — Vercel CLI
 ```bash
-mkdir scan-app && cd scan-app
-# drop scan-app.html and vercel.json in here
-git init && git add -A && git commit -m "scan app"
+npm i -g vercel
+cd vercel-setids
+vercel
+vercel env add METABASE_API_KEY
+vercel env add CARDHEDGE_API_KEY
 vercel --prod
 ```
 
-`vercel.json` rewrites `/` to `scan-app.html`, so the root URL serves the app without
-renaming anything. If you'd rather not keep the config file, rename the app to `index.html`
-and delete `vercel.json` — either works.
+## Verify
+- Sets tab: status pill reads **● Metabase live**; `/api/set-ids` returns a JSON array.
+- Card Match tab: type a cert + pick the grader → the card renders, with a **Recent sales** panel on the right. Try `/api/card-match?cert_number=50000000&grader=PSA` directly to see the JSON.
 
-No build step, no framework. HTTPS is required for camera access, which Vercel gives you
-automatically. Open the URL in Safari on the iPhone and use **Add to Home Screen** — it
-launches full-screen with no browser chrome, which matters on a fixed stand. It installs under
-the name **Scan App**.
+## Card Hedger integration (confirmed from openapi.json)
+- Base URL: `https://api.cardhedger.com`  ·  Auth header: **`X-API-Key`** (not Bearer).
+- Sales endpoint: `POST /v1/cards/comps-by-cert` — body `{cert_number, grading_company, limit}`.
+  Returns a comp summary (`comp_price`, `high`, `low`, `total_count`) plus a `sales` array
+  (`sale_date`, `price`, `price_source`, `sale_type`, `sale_url`). The panel shows Comp / Last /
+  # sales chips, a High·Low line, and the recent-sales list (price links to the sale).
+- Card details come from **Metabase 30460** first; Card Hedger's `card` + `cert_info` are the
+  fallback when a cert isn't in Metabase.
+- The grader is required by Card Hedger, so the UI has a grader dropdown (defaults to PSA); when
+  Metabase supplies the grade, the grader is inferred automatically.
+- Alternative: `POST /v1/cards/prices-by-cert` returns daily **price history** instead of raw
+  comps — swap the endpoint in `cardHedgeComps()` if you'd rather show a price trend.
 
-## The four config blocks
+## Card panel fields
+Row order and behaviour (unchanged from the original layout, except Subset now sits directly
+under Category):
 
-All at the top of the `<script>`, marked `▶ CONFIG`.
+Category, **Subset**, Language, Cert, 8AC, Grade, Set Name, Set ID, Insert, Insert ID, Extra,
+Player, Card No., Rookie, Variant, Finish, Full Art, Rarity, Edition, Parallel, Parallel Total, Tag.
 
-**1 · Logo** — set `LOGO_SRC` to a URL or base64 data URI. Until then a wordmark stands in.
+Rows flagged `core:1` in `FIELD_DEFS` always render, showing "—" when blank: Category, Cert,
+Grade, Set Name, Set ID, Insert, Insert ID, Variant, Finish, Full Art, Rarity, Edition, Parallel.
+Everything else appears only when the source has a value, which is why Language / Extra /
+Parallel Total / Tag come and go per card and Subset shows on a Pokemon card but not on a bare
+Donruss base. Rookie renders only when the source actually has a rookie column.
 
-**2 · Box lookup** — `BOX_REGISTRY` is a stub holding ids 8170–8172. Swap `lookupBox()` for a
-fetch against admin so the box name comes from the real record instead of a hard-coded map.
-This is the main thing still faked.
+To change what stays visible, add or remove `{core:1}` on a row in `FIELD_DEFS`. To move a row,
+move its line — the array order is the render order.
 
-**3 · Object storage** — `Storage.put()` currently queues in memory. Set `mode:'presigned'`
-and point `endpoint` at a serverless route that returns `{url}` for a PUT. Works the same
-for S3 or GCS. Keys are `boxes/{box}/{seq}_{cardId}_{side}.jpg`, so a box is one prefix.
+Field mapping lives in `normalizeCard()` in `api/card-match.js`; add key aliases there if a
+field ever shows blank.
 
-**4 · Capture tuning** — countdown length, stillness thresholds, JPEG quality, guide aspects.
+## Sibling copies come free with the lookup
+A cert lookup against 30460 returns the matched row **plus every other copy of the same card** —
+rows sharing a `subset_id` (which identifies the card; `card_id` identifies the physical copy).
+Each carries its own cert, grade, grading company, image and estimated value.
 
-## Orientation
+`/api/card-match` returns those as `siblings`, so the panel fills a missing est. value or image
+without spending another query. `pickSibling()` chooses:
 
-The phone is inverted on the stand, so every frame is rotated 180° in `grab()` *before* it's
-written. The live preview is also flipped via CSS, so what you see and what gets saved both
-come out upright. Nothing downstream needs to know about the mount.
+1. **Same grading company + same grade** → tier 2, preferring a copy that actually carries a value
+   over an empty twin. Companies are compared through `canonCompany()`, because 30460 stores the
+   column as free text — `beckett`, `Beckett Grading Services` and `BGS` are one grader and must
+   match as siblings, while `arena_club` stays distinct from all of them. Grades parse as numbers,
+   so BGS/SGC half grades (9.5, 8.5) and `9` vs `9.0` compare correctly.
+2. Otherwise **same grading company first, then closest grade** → tier 3. Staying inside one
+   grading scale beats hopping to another, and closest-grade stops a PSA 9 inheriting the dearest
+   PSA 10 in the vault.
 
-## Hands-free capture
+Sibling enrichment runs **before** the Card Hedger gate, using the record's own grading company
+and grade. That ordering matters: an Arena Club card never reaches Card Hedger (no third-party
+cert), so if enrichment sat inside that block it would render with only its own row — which is
+why one 8AC showed a full card and its identical twin showed almost nothing.
 
-Auto mode watches for a settled frame, arms (brackets turn amber, ring fills), then fires.
-After a shot it waits for movement before re-arming — flipping the card is the trigger, so you
-can work straight through a stack without touching the screen. `MANUAL` disables it; the
-shutter always works.
+The panel lists **Other copies in the vault** beneath the fields — 8AC, grade, cert and est. value
+for every sibling, with the copy a borrowed value came from highlighted. The Est. Value caption
+names it too ("Arena Club · same grade, from 8AC 3849393"), so a borrowed number is always
+traceable to a real item.
 
-## Bluetooth clicker
+`resolveFromSystem()` (separate identity queries) is now only the fallback for when the cert isn't
+in 30460 at all and there are no siblings to work with.
 
-Yes, and it needs no special API. A Bluetooth shutter remote, page turner or footswitch
-pairs at the **OS level** and presents itself as a Bluetooth keyboard — so it sends ordinary
-key presses and the app just listens for them. Pair it in iOS Bluetooth settings, not in the app.
+## How a card is resolved
+Lookups walk a cascade and stop at the first tier that answers. `card.match_tier` records which
+one was used.
 
-Web Bluetooth is not the route: Safari doesn't implement it on any platform, and it cannot
-reach HID devices even where it exists. WebHID is Chrome-only. Keyboard events are the path
-that actually works on an iPhone.
+| Tier | Source | What it supplies |
+|---|---|---|
+| 1 | **Direct cert match** in Metabase 30460 | Everything — image, grade, grading company, est. value. Wins outright; lower tiers only fill gaps it left blank. |
+| 2 | **Same card, same grading company + same grade** (a different cert) | Everything, including grade, company and est. value — it's the same slab class, so the value transfers. |
+| 3 | **Next copy in the database**, any grade | Identity fields and est. value. **Never** grade, grading company, or the slab photo — a slab photo has the other card's cert and grade printed on the label. |
+| 4 | **Card Hedger** | Anything still blank, plus comps. |
 
-**The one real trap.** Cheap camera shutter remotes send Volume Up/Down, and iOS keeps those
-keys for itself — a web app never sees them. If you press your remote and nothing registers,
-that's why. Remotes that send **Enter, Space, arrows or page keys** do come through; they're
-usually sold as *e-reader page turners* or *Kindle remotes* rather than camera shutters.
-Bluetooth footswitches for musicians and transcriptionists work well too, and leave both
-hands on the cards.
+The **Cert** row always shows the cert you searched, never a sibling's. 8AC and the admin **Link**
+are cleared whenever the panel isn't backed by a direct cert match, since they'd point at a
+different physical item. The Est. Value box notes its origin — "same
+grade, other cert" for tier 2, "other copy" for tier 3 — so a borrowed value is never mistaken
+for this cert's own.
 
-**One button is enough.** The primary key advances whichever screen you're on, so a single
-click walks the entire box:
+A record can match on cert (tier 1) and still be a **stub** — Arena Club, grade 0, every other
+column empty, which is what a received-but-not-yet-catalogued card looks like. Those still walk
+the cascade: the identity comes from Card Hedger, and the sibling supplies set name, Set ID,
+parallel, image and est. value while the stub keeps its own cert, 8AC and admin link.
+
+Tier 2 needs a real grade to search on, and a stub hasn't got one. It uses the grade and company
+Card Hedger read off the actual cert instead — searching on the "Arena Club / 0" placeholder just
+finds other ungraded stubs.
+
+Tier 2 and 3 run against `/api/card-match` using its identity parameters (`player_name`,
+`card_no`, `set_name`, `insert_name`, `parallel_name`, plus `grading_company` and `grade` for
+tier 2), narrowest query first, then a looser player + card number query.
+
+## Set ID resolution
+Metabase 30460 often returns a blank `set_id`. When it does, `lookupSetId()` matches the card's
+set name against the Sets registry (question 21088) and derives the ID the same way the Sets tab
+does — `sid()` / `idFor()`, i.e. sport code + set code + year. Matching rules: years are stripped before comparing; the registry set name must be fully
+contained in the card's set name; ranking favours distinctive tokens, so `Panini Mosaic` (`FB PM`)
+beats a generic `Panini Football` (`FB PF`). Brand and language act as tiebreakers rather than
+filters — that's what lets Japanese Pokemon cards resolve to the `… JPN` codes. Round-tripping the
+whole registry resolves ~99% of sets exactly; the rest are entries the registry stores twice under
+different codes with the same words (e.g. `Topps Holiday Bowman` vs `Bowman Topps Holiday`,
+`Skybox E X-2000` vs `SkyBox E-X2000`), which can't be told apart from a set name alone.
+
+## The saved question returns unfiltered rows (important)
+Question 30460 does **not** reliably apply its cert filter. A lookup for a single cert comes back
+with ~40 rows: the real match plus a long tail of rows with a null `cert_number`, mostly empty but
+some carrying `grading_company: arena_club`, tags like `confirmed_fake`, and a
+`front_slab_picture_url`.
+
+The proxy used to pick the row with the most non-empty columns, on the assumption every row
+matched. It didn't: the genuine match often has only four populated columns, so a junk row won —
+which is how another card's 8AC and slab scan appeared on unrelated certs (8AC 1884541 turning up
+as both a Tom Brady and a Kobe Bryant, both showing a Babe Ruth "Supreme Cuts" scan).
+
+`rowMatchesFilters()` now verifies every filter against the row before the tie-break, and rows
+that don't match are discarded. Comparison is deliberately tolerant of formatting so it can't
+over-filter: the `8AC` prefix is stripped (its "8" is a digit), leading zeros are ignored (they
+vanish if the column is numeric), grades compare numerically (9 = 9.0), and text compares
+case- and punctuation-insensitively (`arena_club` = `Arena Club`). If a filter's column isn't
+present in the row at all, that filter is skipped rather than treated as a mismatch.
+
+`?debug=1` reports `row_count`, `matched_count` and `discarded`. A large `discarded` on every
+lookup confirms the filter isn't being applied server-side — worth fixing in the question, since
+every consumer of 30460 has the same problem and only this proxy is now defending against it.
+
+## Cert collisions across graders (important)
+Cert numbers are only unique *within* a grading company — PSA 92229842 and Arena Club 92229842
+are unrelated cards. The app used to send the cert with whatever the grader dropdown said
+(default PSA), so an Arena Club record could come back with a stranger's slab image, comps, and
+"Most Recent Sale" attached to it. Three guards now prevent that:
+
+1. **The record picks the grader.** `chGraderFor()` uses the Metabase record's `grading_company`;
+   the dropdown is only a fallback for a bare cert with no record behind it. Company names are
+   mapped through `CH_GRADER_ALIASES`, so a record that says "Beckett" still queries as BGS. If
+   Metabase starts emitting another spelling, add it there or that grader silently loses comps.
+2. **Non-Card-Hedger graders are only queried when there's no real grade.** An Arena Club record
+   carrying an actual grade owns its cert namespace, so no lookup happens. But "Arena Club 0"
+   means *not yet graded* — the slab may be a third-party one — so the selected grader is tried
+   and Card Hedger's grade + grading company replace the placeholder outright. Guard 3 is what
+   keeps that safe.
+3. **Identity is verified.** `sameCard()` compares card number, player, and set year; if Card
+   Hedger's record disagrees, its card and sales are discarded and the panel notes the collision.
+
+Consequence worth knowing: an Arena Club / ungraded record legitimately shows **No Comps**. There
+is no cert to price against until the card has a third-party cert. If you want comps for those,
+the endpoint needed is an identity search (player + set + card no + grade) rather than
+`comps-by-cert` — Card Hedger's cert endpoints can't do it.
+
+## Card images
+Order of preference: our own record's picture (`front_slab_picture_url` and friends), then a
+sibling copy via the resolution cascade, then Card Hedger.
+
+**Our scan has to earn it.** `ownImageTrusted()` keeps our picture only when the record can vouch
+for this cert. It's dropped in favour of Card Hedger's when:
+
+- the record's grade or grading company disagrees with what Card Hedger read off the cert — the
+  row is describing a different slab (grader spelling differences like Beckett/BGS don't count as
+  a disagreement); or
+- the record is a stub with no real grade and no player or card number of its own, so nothing
+  corroborates the scan.
+
+This matters because `fillBlanks()` only fills *blanks* — a wrong-but-present image would never be
+replaced otherwise. It's what put a Babe Ruth "Supreme Cuts" scan on a Kobe Bryant record whose
+8AC (1884541) carried a mis-assigned picture. The scan is only dropped when Card Hedger actually
+has one to put in its place, so a trustworthy-but-unverifiable picture is never traded for nothing.
+
+Card Hedger's image was previously missed because `card-sales.js` only looked for a key named
+exactly `image`, while the Metabase side checked ten spellings. `pickImage()` now checks the
+known spellings, digs into nested containers (`images: {front: …}`) and arrays, and as a last
+resort takes any image-ish key holding a URL. Values that aren't URLs are ignored, so a literal
+"none" doesn't become a broken `<img>`.
+
+If comps come back without a picture, one extra call to `details-by-certs` tries again — only
+when the panel would otherwise show the "no image" placeholder.
+
+Still no image? Hit `/api/card-sales?cert_number=…&grader=PSA&debug=1` — the `debug` block lists
+the exact keys Card Hedger returned, so a new spelling can be added to `IMAGE_KEYS`.
+
+### Card Hedger's null fields
+Card Hedger routinely returns `player`, `set` and `category` as **null** while spelling the same
+facts out in the descriptions:
 
 ```
-click 1  SCAN BOX        click 6  CONFIRM CARD
-click 2  (box scanned)   click 7  SHUTTER  front
-click 3  CONFIRM COUNT   click 8  SHUTTER  back
-click 4  SHUTTER  front  click 9  CONFIRM CARD
-click 5  SHUTTER  back   click 10 COMPLETE BOX
+card.description       "Garrett Wilson 2022 Panini Prizm Football"
+cert_info.description  "2022 Panini Prizm Garrett Wilson Autograph 309"
 ```
 
-**Pairing and testing.** The start screen has a `CLICKER` row with a `PAIR` button. It asks you
-to press the button you want for capture, shows you exactly which key code arrived, then
-optionally a second button for confirm. The key code readout is the important part — it tells
-you in one press whether your remote's keys reach the browser at all. The mapping is saved to
-the device.
+`splitDescription()` recovers them from `card.description` by splitting at the year — what
+precedes it is the player, the rest is the set, and a trailing sport word gives the category.
+The `cert_info` style interleaves player and set, so nothing is taken from it rather than
+guessing wrong. This matters beyond display: the recovered set name feeds `lookupSetId()`
+("2022 Panini Prizm Football" → `FB PP 2022`), and the recovered player makes the tier 2/3
+sibling search far more precise than a card number alone.
 
-Out of the box it already listens for Space, Enter, arrows, page keys and play/pause, so most
-remotes work before you pair anything.
+### Wrong image?
+Hover the picture: the tooltip names its source ("Image from Arena Club record" / "another copy
+in our database" / "Card Hedger"). That distinguishes an app bug from bad source data.
 
-## Camera on the deployed app
-
-The prototype falls back to a simulated feed so the flow is clickable anywhere. On the real
-Vercel deployment the camera is live, with no code change — but four conditions have to hold,
-and all four are easy to get wrong:
-
-1. **HTTPS.** `getUserMedia` is blocked on plain HTTP. Vercel serves HTTPS by default, so this
-   is only a problem if you test from a `file://` copy or a LAN IP.
-2. **A user gesture.** iOS Safari will not open the camera without one. `SCAN BOX` is that
-   gesture — the camera is requested on tap, never on page load.
-3. **Permission granted once per origin.** If it's ever denied for the deployment URL, iOS
-   remembers. Clear it under Settings → Safari → Camera, or in the AA menu in the address bar.
-4. **`playsinline`.** Without it iOS hijacks the video into a fullscreen player. It's set.
-
-The app requests the rear camera at up to 2560 x 1440 and falls back to whatever the device
-offers. When it's running simulated instead of live, an amber **SIMULATED · NO CAMERA** badge
-sits in the app bar for the whole session, so a demo run can never be mistaken for real capture.
-
-## Confirming the scan
-
-The image on the confirm screen is a **crop of the code that was actually decoded**, not a wide
-shot of the box. Both decoders report where they found the code, and the crop is expanded with
-extra room above it, since the printed id sits over the QR on an Arena label — so the
-confirmation shows the code and the `8170 / Kind / Box` text together. Tap it to enlarge.
-
-If that image ever shows a different box than the one in front of you, the scan grabbed a
-neighbouring label, and `RESCAN` is right there.
-
-## Testing it with no camera
-
-Open it on a desktop and deny or ignore the camera. The scan screen renders a simulated box —
-corrugated, taped, shipping label facing the lens — and that label carries a **real, decodable
-QR for box 8170**, embedded in the file. The app decodes it through the same
-`BarcodeDetector`/jsQR path a real camera uses and advances on its own. So the no-camera path
-isn't a mock of scanning; it's actual scanning of a drawn box. If it advances, decoding works.
-
-`SKIP · USE 8170` bypasses decoding if you just want to reach the capture flow, and
-`ENTER CODE` accepts any of the payload formats by hand.
-
-The simulated feed is deliberately drawn **inverted**, exactly as the phone on the stand sees
-the world, so the CSS flip and the `grab()` rotation both get exercised. If a preview ever
-looks upside down, that's a real bug and not a demo artifact.
-
-## The production label
-
-Reference image kept alongside this file as `reference-production-label.png`. The decoded
-payload is:
+If it says **Arena Club record**, the URL is coming out of Metabase 30460 and the app is
+displaying it faithfully — the scan itself is mis-assigned. Confirm with:
 
 ```
-admin.arenaclub.com/b/8170
+/api/card-match?cert_number=<cert>&debug=1
 ```
 
-An admin URL, not a bare code. The app takes the **last path segment** as the box id, so `8170`
-is what reaches the top bar, the storage keys and the manifest. Scheme, trailing slash and query
-string are all tolerated, and a deeper path like `/boxes/2026/8170` resolves the same way.
-Because the payload is a live URL, the box block shows **OPEN IN ADMIN** as a link straight to
-the record.
+`debug.raw_row` shows the exact `front_slab_picture_url` stored against that 8AC. If two adjacent
+8ACs carry the same URL, a scanning batch mapped images to the wrong records and it needs fixing
+at the source — every tool reading that column shows the same wrong picture.
 
-Printed layout, top to bottom: id, kind with its mark, sub line, then a large QR. That format is
-mirrored in `LABEL` at the top of the script and in the simulated feed, so the demo now looks
-like what the camera will actually see.
+## Other panel behaviour
+- Values are shown exactly as the source supplies them. `polishCard()` only fills blanks — a
+  missing Set ID, and a missing Parallel — and never rewrites a value Metabase returned.
+- **Parallel** is mirrored from the Variant column when Variant names a colour/pattern parallel
+  ("Camo Red", "Press Proof Premium", "Silver Prizm"). Card-type words are left alone, so "Base",
+  "Full Art", "Rated Rookie" and "Short Print" never become parallels. The vocabulary is two
+  editable arrays, `PARALLEL_WORDS` and `NOT_PARALLEL`; add to them when a parallel line is
+  missed or a non-parallel slips through. Variant keeps its value, so a mirrored card shows the
+  same text in both rows.
+- **Broken image URLs** fall back to the "no image" placeholder instead of the browser's broken-image
+  icon (`imgFail()`).
 
-Legacy forms still parse — bare codes, `id|name`, and JSON — so nothing breaks if an older label
-turns up in a bin.
+## OCR
+"Drop a graded-label image" reads the cert with Tesseract.js (cdnjs) and auto-matches. Use a
+tight crop of the label for best results; typing/scanning the cert always works.
 
-## Test kit
-
-**`box-labels.pdf`** — four labels in the production format on one letter sheet, ids 8170–8173,
-each carrying a real `admin.arenaclub.com/b/<id>` payload. Cut on the dashed lines. Verified
-decodable off a 100 dpi render, so a normal print is comfortable.
-
-**`box-label-<id>.png`** — the same four as large single images. No printer: open one on your
-monitor and scan the screen.
-
-**`test-cards.pdf`** — three pages. Page 1 is six card fronts at true 2.5 x 3.5, page 2 the six
-matching backs, page 3 a slab-sized pair at 3.25 x 5.25 for the `SLAB` guide. Print
-single-sided, cut, pair by the big number. Each card carries three things worth having:
-
-- a **number on both sides**, so a front/back mismatch in the stored images is obvious at a glance
-- **white registration squares in all four corners** — if a corner is missing from the saved
-  image, the crop guide is clipping and `CFG.pad` needs raising
-- a **focus target**: type stepping down 7pt to 3pt, plus line-pair bars. If the 4.5pt line is
-  legible in the stored file, the capture is sharp enough to review. If only 7pt reads, the
-  phone is focusing on the table instead of the card.
-
-## Known gaps for the real build
-
-- Images are in memory only. For offline resilience, queue blobs in IndexedDB and drain on
-  reconnect. A dropped connection mid-box currently loses the box.
-- Barcode decoding uses `BarcodeDetector` where available and falls back to jsQR from CDN.
-  For a production install, vendor jsQR locally so it works on a dead network.
-- No dedupe. Scanning the same box twice creates a second set of keys under the same prefix.
-- Desktop shortcuts for demos: `Space` captures, `Enter` confirms.
+## Notes
+- Sets filtering (sport/brand/year/search) happens client-side; the proxy fetches all rows and
+  Vercel edge-caches for ~60s. Card Match caches per cert for ~30s.
+- To extend the Year picker beyond 2026, bump `YEAR_MAX` near the top of the `<script>` in `index.html`.
